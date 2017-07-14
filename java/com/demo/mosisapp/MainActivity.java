@@ -1,5 +1,6 @@
 package com.demo.mosisapp;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -23,7 +24,9 @@ import java.util.Arrays;
 public class MainActivity extends AppCompatActivity
 {
     private static final String myTag = "wassermelone";
-    private static final String anon = "anonymous";
+    private static final String anon = "anonymous?";    //not expected to happen
+
+    //firebase authentication
     private FirebaseAuth mFirebaseAuth;
     private FirebaseAuth.AuthStateListener mAuthStateListener;
     private static final int RC_SIGN_IN = 123; //request code
@@ -60,25 +63,17 @@ public class MainActivity extends AppCompatActivity
                     String name = user.getDisplayName();
                     String email = user.getEmail();
                     Uri photoUrl = user.getPhotoUrl();
-
+                    user.getToken(true);
                     // The user's ID, unique to the Firebase project. Do NOT use this value to
                     // authenticate with your backend server, if you have one. Use
                     // FirebaseUser.getToken() instead.
                     String uid = user.getUid();
-
-                    Toast.makeText(MainActivity.this, "Signed in, " + name + "!", Toast.LENGTH_SHORT).show();
                     Log.d(myTag, "onAuthStateChanged: signed_in:" + user.getUid());
                 } else {
                     // user is signed out, show logInFlow
                     Log.d(myTag, "onAuthStateChanged: signed_out");
-                    startActivityForResult(
-                            AuthUI.getInstance()
-                                    .createSignInIntentBuilder()
-                                    .setIsSmartLockEnabled(false)
-                                    .setProviders(Arrays.asList(new AuthUI.IdpConfig.Builder(AuthUI.EMAIL_PROVIDER).build()))
-                                    .build(),
-                            RC_SIGN_IN);
-
+                    Intent login = new Intent(MainActivity.this, LoginActivity.class);
+                    startActivityForResult(login, RC_SIGN_IN);
                 }
             }
         };
@@ -88,7 +83,7 @@ public class MainActivity extends AppCompatActivity
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == RC_SIGN_IN){
-            if (resultCode==RESULT_OK) {
+            if (resultCode== Activity.RESULT_OK) {
                 Toast.makeText(this, "Signed in!", Toast.LENGTH_SHORT).show();
             }else if (resultCode == RESULT_CANCELED){ //if user cancels the sign in
                 Toast.makeText(this, "Sign in canceled!", Toast.LENGTH_SHORT).show();
