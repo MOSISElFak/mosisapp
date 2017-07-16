@@ -15,14 +15,6 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
-
-import com.firebase.ui.auth.AuthUI;
-import com.google.android.gms.maps.CameraUpdateFactory;
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
@@ -32,6 +24,7 @@ public class MainActivity extends AppCompatActivity
 {
     private static final String myTag = "wassermelone";
     private static final String anon = "anonymous?";    //not expected to happen
+    private static final int RC_MAIN = 124;
 
     //firebase authentication
     private FirebaseAuth mFirebaseAuth;
@@ -76,6 +69,8 @@ public class MainActivity extends AppCompatActivity
                     // FirebaseUser.getToken() instead.
                     String uid = user.getUid();
                     Log.d(myTag, "onAuthStateChanged: signed_in:" + user.getUid());
+                    Intent go = new Intent(MainActivity.this, MapsActivity.class);
+                    startActivityForResult(go, RC_MAIN);
                 } else {
                     // user is signed out, show logInFlow
                     Log.d(myTag, "onAuthStateChanged: signed_out");
@@ -97,6 +92,7 @@ public class MainActivity extends AppCompatActivity
                 finish(); //so that you can actually leave
             }else Toast.makeText(this, "Well, we returned", Toast.LENGTH_SHORT).show();
         }
+        else if (requestCode == RC_MAIN) {finish();}
     }
 
     @Override

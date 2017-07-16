@@ -3,8 +3,6 @@
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
         <!-- Customize your theme here. -->
-        <item name="colorPrimary">@color/Purple_A700</item>
-        <item name="colorPrimaryDark">@color/Purple_700</item>
         <item name="colorAccent">@color/Green_A700</item>
         <item name="android:windowBackground">@color/Grey_700</item>
         <item name="android:colorBackground">@color/Grey_600</item>
@@ -15,9 +13,17 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar"/>
+    <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar">
+        <item name="colorPrimary">@color/Grey_700</item>
+        <item name="colorPrimaryDark">@color/Grey_900</item>
+        <item name="colorAccent">@color/Green_A700</item>
+    </style>
 
-    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Light"/>
+    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Dark">
+        <item name="colorPrimary">@color/Grey_700</item>
+        <item name="colorPrimaryDark">@color/Grey_900</item>
+        <item name="colorAccent">@color/Green_A700</item>
+    </style>
 
     <style name="FullscreenTheme" parent="AppTheme">
         <item name="android:actionBarStyle">@style/FullscreenActionBarStyle</item>

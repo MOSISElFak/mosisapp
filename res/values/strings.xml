@@ -24,6 +24,15 @@
     <string name="error_incorrect_password">This password is incorrect</string>
     <string name="error_field_required">This field is required</string>
     <string name="permission_rationale">"Contacts permissions are needed for providing email completions."</string>
+    <string name="error_username_short">This username is too short</string>
+    <string name="error_invalid_username">Username is invalid</string>
     <string name="logo_description">fsociety</string>
-    
+
+    <string name="default_text">Not set</string>
+    <string name="mine_change_label">Change</string>
+    <string name="mine_update_label">Update profile</string>
+
+    <!-- Mapping -->
+    <string name="default_info_title">Beaverhausen</string>
+    <string name="default_info_snippet">Anastasia Beaverhausen</string>
 </resources>

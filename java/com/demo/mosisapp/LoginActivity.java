@@ -35,7 +35,6 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.firebase.ui.auth.AuthUI;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
@@ -45,6 +44,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.UserProfileChangeRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,12 +58,14 @@ import static android.Manifest.permission.READ_CONTACTS;
 public class LoginActivity extends AppCompatActivity implements View.OnClickListener
 {
     //TODO: why is field text dark gray?
+    //TODO: add autocomplete for emails?
     //TODO: decide on error reporting to user - setError or mStatus.setText?
     //TODO: decide on passing user data back or removing excess calls here
     private String myTag = "wassermelone";
     private boolean isLogin = true;
     private boolean mail_set = false;
     private boolean pass_set = false;
+    private boolean usern_set = false;
     private boolean letMeOut = true;
 
     private FirebaseAuth mFirebaseAuth;
@@ -71,6 +73,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     // UI references.
     private EditText mEditText_mail;
     private EditText mEditText_pass;
+    private EditText mEditText_user;
     private ProgressDialog progressDialog;
     private TextView mStatus_register;
     private TextView mStatus_signin;
@@ -84,6 +87,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
 
         mEditText_mail = (EditText) findViewById(R.id.login_email);
         mEditText_pass = (EditText) findViewById(R.id.login_password);
+        mEditText_user = (EditText) findViewById(R.id.register_username);
         mStatus_register = (TextView)findViewById(R.id.register_status);
         mStatus_signin = (TextView)findViewById(R.id.sign_in_status);
         sign_in_button = (Button)findViewById(R.id.sign_in_button);
@@ -113,7 +117,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 if (s.toString().trim().length() > 0) {
                     mail_set = true;
                     if (pass_set && isLogin) sign_in_button.setEnabled(true);
-                    else if (pass_set && !isLogin) register_button.setEnabled(true);
+                    else if (!isLogin && pass_set && usern_set) register_button.setEnabled(true);
                 }
             }
 
@@ -134,13 +138,29 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 if (s.toString().trim().length() > 0) {
                    pass_set = true;
                    if (mail_set && isLogin) sign_in_button.setEnabled(true);
-                    else if (mail_set && !isLogin) register_button.setEnabled(true);
+                    else if (!isLogin && mail_set && usern_set) register_button.setEnabled(true);
                 }
             }
 
             @Override
             public void afterTextChanged(Editable s) {
             }
+        });
+        mEditText_user.addTextChangedListener(new TextWatcher()
+        {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.toString().trim().length() > 0) {
+                    usern_set = true;
+                    if (!isLogin && mail_set && pass_set) register_button.setEnabled(true);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
         });
     }
 
@@ -186,6 +206,9 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 letMeOut = false;
                 findViewById(R.id.main_form).setVisibility(View.GONE);
                 findViewById(R.id.login_flow).setVisibility(View.VISIBLE);
+                mEditText_mail.setText(""); //in case user changes modes login/register
+                mEditText_pass.setText("");
+                mEditText_user.setText("");
                 break;
             case(R.id.goto_register_button):
                 isLogin = false;
@@ -194,6 +217,9 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 findViewById(R.id.login_flow).setVisibility(View.VISIBLE);
                 findViewById(R.id.register_form).setVisibility(View.VISIBLE);
                 findViewById(R.id.sign_in_button).setVisibility(View.GONE);
+                mEditText_mail.setText(""); //in case user changes modes login/register
+                mEditText_pass.setText("");
+                mEditText_user.setText("");
                 break;
             case(R.id.register_button):
                 attemptLogin();
@@ -211,6 +237,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
 
         mEditText_mail.setError(null);
         mEditText_pass.setError(null);
+        mEditText_user.setError(null);
 
         //how secure this really is
         String mail = mEditText_mail.getText().toString();
@@ -220,6 +247,12 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
         if (!TextUtils.isEmpty(pass) && !isPasswordValid(pass)) {
             mEditText_pass.setError(getString(R.string.error_invalid_password));
             focusView = mEditText_pass;
+            cancel = true;
+        }
+
+        if (!isLogin && !(mEditText_user.getText().toString().length() > 5)) {
+            mEditText_user.setError(getString(R.string.error_username_short));
+            focusView = mEditText_user;
             cancel = true;
         }
 
@@ -233,7 +266,6 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
             cancel = true;
         }
 
-        //
         if (cancel) {
             // There was an error; don't attempt login and focus the first
             // form field with an error.
@@ -249,11 +281,14 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                             @Override
                             public void onComplete(@NonNull Task<AuthResult> task) {
                                 showProgressDialog(false);
-                                if (task.isSuccessful()) {
+                                if (task.isSuccessful())
+                                {
                                     FirebaseUser user = mFirebaseAuth.getCurrentUser();
                                     Toast.makeText(LoginActivity.this, "Signed in, " + user.getEmail() + "!", Toast.LENGTH_SHORT).show();
                                     updateUI();
-                                } else {
+                                }
+                                else
+                                {
                                     String msg = "Something went wrong. Please try again.";
                                     if (task.getException() instanceof FirebaseAuthInvalidUserException) msg="This email is not registered.";
                                     else if (task.getException() instanceof FirebaseAuthInvalidCredentialsException) {
@@ -277,12 +312,24 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                             @Override
                             public void onComplete(@NonNull Task<AuthResult> task) {
                                 showProgressDialog(false);
-                                if (task.isSuccessful()) {
+                                if (task.isSuccessful())
+                                {
                                     // Sign in success, update UI with the signed-in user's information
                                     Log.d(myTag, "createUserWithEmail:success");
                                     FirebaseUser user = mFirebaseAuth.getCurrentUser();
+
+                                    user.updateProfile(new UserProfileChangeRequest.Builder().setDisplayName(mEditText_user.getText().toString()).build())
+                                            .addOnCompleteListener(new OnCompleteListener<Void>() {
+                                            @Override
+                                            public void onComplete(@NonNull Task<Void> task) {
+                                                if (task.isSuccessful()) {
+                                                    Log.d("Display name: ", FirebaseAuth.getInstance().getCurrentUser().getDisplayName());
+                                                }
+                                            }});
                                     updateUI();
-                                } else {
+                                }
+                                else
+                                {
                                     // If sign in fails, display a message to the user.
                                     String msg = "Something went wrong. Please try again.";
                                     if (task.getException() instanceof FirebaseAuthUserCollisionException) {

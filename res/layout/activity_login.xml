@@ -121,7 +121,6 @@
                     android:layout_height="wrap_content"
                     android:hint="@string/prompt_password"
                     android:imeActionId="@+id/login"
-                    android:imeActionLabel="@string/action_sign_in"
                     android:imeOptions="actionNext"
                     android:inputType="textPassword"
                     android:maxLines="1"
@@ -136,6 +135,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
+                <!-- maybe better to let user set displayName/userName AFTER giving realName? -->
                 <android.support.design.widget.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -150,6 +150,7 @@
 
                 </android.support.design.widget.TextInputLayout>
 
+                <!--
                 <android.support.design.widget.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
@@ -176,19 +177,7 @@
                         android:inputType="textCapWords|textPersonName"
                         android:maxLines="1"/>
                 </android.support.design.widget.TextInputLayout>
-
-                <android.support.design.widget.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <EditText
-                        android:id="@+id/register_phone"
-                        android:layout_width="fill_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/prompt_phone"
-                        android:inputType="phone"/>
-
-                </android.support.design.widget.TextInputLayout>
+                -->
 
                 <TextView
                     android:id="@+id/register_status"
