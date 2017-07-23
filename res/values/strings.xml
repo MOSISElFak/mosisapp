@@ -14,10 +14,14 @@
     <string name="prompt_realname">Name</string>
     <string name="prompt_lastname">Last Name</string>
     <string name="prompt_phone">Phone number</string>
+    <string name="forgot_password">Forgot Password?</string>
 
     <string name="action_sign_in_long">Sign in or register</string>
     <string name="action_sign_in">Sign in</string>
     <string name="action_register">Register</string>
+    <string name="action_forgot_continue">Continue</string>
+
+    <string name="message_forgot">Enter registered email to reset your password.</string>
 
     <string name="error_invalid_email">This email address is invalid</string>
     <string name="error_invalid_password">This password is too short</string>
@@ -28,6 +32,7 @@
     <string name="error_invalid_username">Username is invalid</string>
     <string name="logo_description">fsociety</string>
 
+    <!-- Profile -->
     <string name="default_text">Not set</string>
     <string name="mine_change_label">Change</string>
     <string name="mine_update_label">Update profile</string>

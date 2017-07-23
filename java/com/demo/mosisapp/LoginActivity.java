@@ -35,7 +35,9 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
@@ -45,28 +47,30 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static android.Manifest.permission.READ_CONTACTS;
+import static com.google.firebase.database.DatabaseReference.goOffline;
 
 /**
  * A login screen that offers login via email/password.
  */
 public class LoginActivity extends AppCompatActivity implements View.OnClickListener
 {
-    //TODO: why is field text dark gray?
     //TODO: add autocomplete for emails?
     //TODO: decide on error reporting to user - setError or mStatus.setText?
-    //TODO: decide on passing user data back or removing excess calls here
     private String myTag = "wassermelone";
     private boolean isLogin = true;
     private boolean mail_set = false;
     private boolean pass_set = false;
     private boolean usern_set = false;
     private boolean letMeOut = true;
+    boolean forgetmenot = false;
 
     private FirebaseAuth mFirebaseAuth;
 
@@ -79,6 +83,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     private TextView mStatus_signin;
     private Button sign_in_button;
     private Button register_button;
+    private TextView forgot_password;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,11 +97,14 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
         mStatus_signin = (TextView)findViewById(R.id.sign_in_status);
         sign_in_button = (Button)findViewById(R.id.sign_in_button);
         register_button = (Button)findViewById(R.id.register_button);
+        forgot_password = (TextView)findViewById(R.id.forgot_password);
 
         findViewById(R.id.goto_login_button).setOnClickListener(this);
         findViewById(R.id.goto_register_button).setOnClickListener(this);
         sign_in_button.setOnClickListener(this);
         register_button.setOnClickListener(this);
+        forgot_password.setOnClickListener(this);
+        findViewById(R.id.forgot_continue_button).setOnClickListener(this);
 
         sign_in_button.setEnabled(false);
         register_button.setEnabled(false);
@@ -112,13 +120,14 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
 
             @Override
             public void onTextChanged(CharSequence s, int i, int i1, int i2) {
-                mStatus_register.setVisibility(View.GONE);
-                mStatus_signin.setVisibility(View.GONE);
-                if (s.toString().trim().length() > 0) {
-                    mail_set = true;
-                    if (pass_set && isLogin) sign_in_button.setEnabled(true);
-                    else if (!isLogin && pass_set && usern_set) register_button.setEnabled(true);
-                }
+                    mStatus_register.setVisibility(View.GONE);
+                    mStatus_signin.setVisibility(View.GONE);
+                    if (s.toString().trim().length() > 0) {
+                            mail_set = true;
+                            if (pass_set && isLogin) sign_in_button.setEnabled(true);
+                            else if (!isLogin && pass_set && usern_set)
+                                register_button.setEnabled(true);
+                    }
             }
 
             @Override
@@ -162,11 +171,20 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
             @Override
             public void afterTextChanged(Editable s) {}
         });
+
     }
 
     @Override
     public void onBackPressed() { //this is just for fun, returns to choice login/register
         if (letMeOut) super.onBackPressed();
+        else if(forgetmenot) {
+            forgetmenot = false;
+            forgot_password.setVisibility(View.VISIBLE);
+            findViewById(R.id.login_password_wrap).setVisibility(View.VISIBLE);
+            findViewById(R.id.sign_in_button).setVisibility(View.VISIBLE);
+            findViewById(R.id.forgot_continue_button).setVisibility(View.GONE);
+            findViewById(R.id.message_to_user).setVisibility(View.GONE);
+        }
         else {
             letMeOut = true;
             isLogin = false;
@@ -206,6 +224,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 letMeOut = false;
                 findViewById(R.id.main_form).setVisibility(View.GONE);
                 findViewById(R.id.login_flow).setVisibility(View.VISIBLE);
+                forgot_password.setVisibility(View.VISIBLE);
                 mEditText_mail.setText(""); //in case user changes modes login/register
                 mEditText_pass.setText("");
                 mEditText_user.setText("");
@@ -217,6 +236,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 findViewById(R.id.login_flow).setVisibility(View.VISIBLE);
                 findViewById(R.id.register_form).setVisibility(View.VISIBLE);
                 findViewById(R.id.sign_in_button).setVisibility(View.GONE);
+                forgot_password.setVisibility(View.GONE);
                 mEditText_mail.setText(""); //in case user changes modes login/register
                 mEditText_pass.setText("");
                 mEditText_user.setText("");
@@ -227,6 +247,51 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
             case(R.id.sign_in_button):
                 attemptLogin();
                 break;
+            case(R.id.forgot_password):
+                forgetmenot = true;
+                forgot_password.setVisibility(View.GONE);
+                findViewById(R.id.login_password_wrap).setVisibility(View.GONE);
+                findViewById(R.id.sign_in_button).setVisibility(View.GONE);
+                findViewById(R.id.forgot_continue_button).setVisibility(View.VISIBLE);
+                findViewById(R.id.message_to_user).setVisibility(View.VISIBLE);
+                break;
+            case(R.id.forgot_continue_button):
+                resetPassword();
+                break;
+        }
+    }
+
+    private void resetPassword() {
+        boolean cancel = false;
+        String mail = mEditText_mail.getText().toString();
+        if (TextUtils.isEmpty(mail)) {
+            mEditText_mail.setError(getString(R.string.error_field_required));
+            cancel = true;
+        } else if (!isEmailValid(mail)) {
+            mEditText_mail.setError(getString(R.string.error_invalid_email));
+            cancel = true;
+        }
+        if (cancel) mEditText_mail.requestFocus();
+        else {
+            showProgressDialog(true);
+            mFirebaseAuth.sendPasswordResetEmail(mail)
+                    .addOnCompleteListener(new OnCompleteListener<Void>()
+                    {
+                        @Override
+                        public void onComplete(@NonNull Task<Void> task) {
+                            if (task.isSuccessful()) {
+                                forgetmenot = false;
+                                mEditText_pass.setVisibility(View.VISIBLE);
+                                forgot_password.setVisibility(View.VISIBLE);
+                                findViewById(R.id.sign_in_button).setVisibility(View.VISIBLE);
+                                findViewById(R.id.forgot_continue_button).setVisibility(View.GONE);
+                                findViewById(R.id.message_to_user).setVisibility(View.GONE);
+                            } else {
+                                Toast.makeText(LoginActivity.this, "Failed to send reset email!", Toast.LENGTH_SHORT).show();
+                            }
+                            showProgressDialog(false);
+                        }
+                    });
         }
     }
 
@@ -239,7 +304,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
         mEditText_pass.setError(null);
         mEditText_user.setError(null);
 
-        //how secure this really is
+        //how secure this really is, add .trim()?
         String mail = mEditText_mail.getText().toString();
         String pass = mEditText_pass.getText().toString();
 
@@ -316,9 +381,9 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                                 {
                                     // Sign in success, update UI with the signed-in user's information
                                     Log.d(myTag, "createUserWithEmail:success");
-                                    FirebaseUser user = mFirebaseAuth.getCurrentUser();
 
-                                    user.updateProfile(new UserProfileChangeRequest.Builder().setDisplayName(mEditText_user.getText().toString()).build())
+                                    // Add username to Auth profile
+                                    mFirebaseAuth.getCurrentUser().updateProfile(new UserProfileChangeRequest.Builder().setDisplayName(mEditText_user.getText().toString().trim()).build())
                                             .addOnCompleteListener(new OnCompleteListener<Void>() {
                                             @Override
                                             public void onComplete(@NonNull Task<Void> task) {
@@ -326,7 +391,34 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                                                     Log.d("Display name: ", FirebaseAuth.getInstance().getCurrentUser().getDisplayName());
                                                 }
                                             }});
-                                    updateUI();
+
+                                    // Create DB reference
+                                    // This could be moved to onCreate, as a backup/check to see if it exists on Login too?
+                                    final FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+                                    final DatabaseReference refUsers = FirebaseDatabase.getInstance().getReference().child("users");
+
+                                    try { // this is just for trying out continuation, can be simpler
+                                        refUsers.child(user.getUid()).child("username").setValue(mEditText_user.getText().toString().trim())
+                                                .continueWithTask(new Continuation<Void, Task<Void>>()
+                                                {
+                                                    @Override
+                                                    public Task<Void> then(@NonNull Task<Void> t) throws Exception {
+                                                        Task bla = refUsers.child(user.getUid()).child("provider").setValue("email");
+                                                        return bla;
+                                                    }
+                                                })
+                                                .addOnSuccessListener(new OnSuccessListener<Void>()
+                                                {
+                                                    @Override
+                                                    public void onSuccess(Void aVoid) {
+                                                        //goOffline();
+                                                        updateUI();
+                                                    }
+                                                });
+                                    } catch (Exception e) {
+                                        Toast.makeText(LoginActivity.this,"Continuation failed",Toast.LENGTH_SHORT).show();
+                                        e.printStackTrace();
+                                    }
                                 }
                                 else
                                 {

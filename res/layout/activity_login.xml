@@ -80,7 +80,7 @@
         android:id="@+id/login_flow"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone">
+        android:visibility="gone" >
 
         <LinearLayout
             android:id="@+id/login_form"
@@ -113,7 +113,8 @@
 
             <android.support.design.widget.TextInputLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="wrap_content"
+                android:id="@+id/login_password_wrap">
 
                 <EditText
                     android:id="@+id/login_password"
@@ -214,6 +215,37 @@
                 android:layout_marginTop="16dp"
                 android:text="@string/action_sign_in"
                 android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/message_to_user"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAlignment="center"
+                android:text="@string/message_forgot"
+                android:visibility="gone"/>
+
+            <Button
+                android:id="@+id/forgot_continue_button"
+                style="?android:textAppearanceSmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/action_forgot_continue"
+                android:textStyle="bold"
+                android:visibility="gone"/>
+
+            <TextView
+                android:id="@+id/forgot_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAlignment="center"
+                android:paddingTop="16dp"
+                android:textColor="@color/colorAccent"
+                android:text="@string/forgot_password"
+                android:textAllCaps="true"
+                android:textIsSelectable="false"
+                android:clickable="true"
+                android:visibility="gone"/>
 
         </LinearLayout>
     </ScrollView>

@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
+    @Override //onPause or onStop?
     protected void onPause() {
         super.onPause();
         if (mAuthStateListener != null) {
@@ -127,7 +127,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    @Override
+    @Override //onResume or onStart?
     protected void onResume() {
         super.onResume();
         mFirebaseAuth.addAuthStateListener(mAuthStateListener);
