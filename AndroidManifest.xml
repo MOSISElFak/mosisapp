@@ -59,6 +59,11 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="com.demo.mosisapp.MainActivity"/>
         </activity>
+        <activity android:name=".MyProfileActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.demo.mosisapp.MapsActivity"/>
+        </activity>
     </application>
 
 </manifest>

@@ -40,4 +40,5 @@
     <!-- Mapping -->
     <string name="default_info_title">Beaverhausen</string>
     <string name="default_info_snippet">Anastasia Beaverhausen</string>
+    <string name="title_activity_profile">ProfileActivity</string>
 </resources>

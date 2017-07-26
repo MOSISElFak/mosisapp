@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_margin="16dp"
+    android:gravity="center_vertical|center_horizontal"
+    android:orientation="vertical"
+    tools:context="com.demo.mosisapp.MyProfileActivity"
+    android:weightSum="1">
+
+    <ImageView
+        android:id="@+id/MyProfilePic"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="0.8"
+        android:adjustViewBounds="false"
+        android:contentDescription="@string/logo_description"
+        app:srcCompat="@drawable/logo_fsociety_smal"
+        tools:layout_editor_absoluteX="8dp"
+        tools:layout_editor_absoluteY="32dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_username"
+        android:textIsSelectable="false"/>
+
+    <EditText
+        android:id="@+id/mine_usern"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:ems="10"
+        android:imeOptions="actionNext"
+        android:inputType="text|number"
+        android:maxLines="1"
+        android:text="@string/default_text"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_realname"
+        android:textIsSelectable="false"/>
+
+    <EditText
+        android:id="@+id/mine_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:ems="10"
+        android:inputType="textPersonName"
+        android:maxLines="1"
+        android:text="@string/default_text"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_lastname"
+        android:textIsSelectable="false"/>
+
+    <EditText
+        android:id="@+id/mine_last"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:ems="10"
+        android:inputType="textPersonName"
+        android:maxLines="1"
+        android:text="@string/default_text"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_phone"
+        android:textIsSelectable="false"/>
+
+    <EditText
+        android:id="@+id/mine_phone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:ems="10"
+        android:inputType="phone"
+        android:maxLines="1"
+        android:text="@string/default_text"
+        android:textIsSelectable="false"/>
+
+    <Button
+        android:id="@+id/mine_change_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/mine_change_label"/>
+
+</LinearLayout>
