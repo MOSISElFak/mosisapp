@@ -11,6 +11,13 @@
     tools:context="com.demo.mosisapp.MyProfileActivity"
     android:weightSum="1">
 
+    <TextView
+        android:id="@+id/screamer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="....."
+        android:textColor="@color/Red_500"/>
+
     <ImageView
         android:id="@+id/MyProfilePic"
         android:layout_width="match_parent"
