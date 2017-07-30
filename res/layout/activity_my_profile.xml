@@ -25,9 +25,8 @@
         android:layout_weight="0.8"
         android:adjustViewBounds="false"
         android:contentDescription="@string/logo_description"
-        app:srcCompat="@drawable/logo_fsociety_smal"
-        tools:layout_editor_absoluteX="8dp"
-        tools:layout_editor_absoluteY="32dp"/>
+        android:scaleType="fitCenter"
+        app:srcCompat="@drawable/logo_fsociety_smal" />
 
     <TextView
         android:layout_width="match_parent"

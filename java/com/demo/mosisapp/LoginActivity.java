@@ -3,9 +3,12 @@ package com.demo.mosisapp;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -50,6 +53,7 @@ import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -98,6 +102,15 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
         sign_in_button = (Button)findViewById(R.id.sign_in_button);
         register_button = (Button)findViewById(R.id.register_button);
         forgot_password = (TextView)findViewById(R.id.forgot_password);
+
+        mEditText_pass.setOnEditorActionListener(new TextView.OnEditorActionListener()
+        {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (isLogin) sign_in_button.callOnClick();
+                return false;
+            }
+        });
 
         findViewById(R.id.goto_login_button).setOnClickListener(this);
         findViewById(R.id.goto_register_button).setOnClickListener(this);
@@ -371,6 +384,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                             }
                         });
             } else {//is not login xD
+                clearData();
                 mFirebaseAuth.createUserWithEmailAndPassword(mail, pass)
                         .addOnCompleteListener(this, new OnCompleteListener<AuthResult>()
                         {
@@ -443,6 +457,25 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                         });
             }
         }
+    }
+
+    private void clearData() {
+        //clearPreferences()
+        SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
+        SharedPreferences.Editor editor = data.edit();
+        editor.clear();
+        editor.commit();
+        //MyDebugCheck()
+        String path = getExternalFilesDir(Environment.DIRECTORY_PICTURES).toString();
+        File directory = new File(path);
+        File[] files = directory.listFiles();
+        System.out.println("Files, Size: "+ files.length);
+        for (int i = 0; i < files.length; i++)
+        {
+            System.out.println("Files, FileName:" + files[i].getName());
+            files[i].delete();
+        }
+        System.out.println("MyDebugCheck completed");
     }
 
     /*
