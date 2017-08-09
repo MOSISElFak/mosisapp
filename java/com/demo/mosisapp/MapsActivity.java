@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -27,13 +28,23 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.ChildEventListener;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+
+import java.io.Console;
+import java.util.Date;
 
 /* (Notes from Google) @SuppressWarnings("MissingPermission") try @SuppressWarnings({"ResourceType"}) or //noinspection MissingPermission
  * Note: If you're using the v7 appcompat library, your activity should instead extend AppCompatActivity, which is a subclass of FragmentActivity. (For more information, read Adding the App Bar)
@@ -57,12 +68,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Location mLastKnownLocation;
     private int DEFAULT_ZOOM = 15;
     //private Location mCurrentLocation;
-    private static final long UPDATE_INTERVAL = 10000; //10 seconds in milliseconds, inexact
-    private static final long FASTEST_INTERVAL = 5000; //5sec, update_interval/2, exact
+    private static final long UPDATE_INTERVAL = 20000; //20 seconds in milliseconds, inexact
+    private static final long FASTEST_INTERVAL = 10000; //10sec, update_interval/2, exact
 
-    private final LatLng mDefaultLocation = new LatLng(48.137154, 11.576124);
+    private final LatLng mDefaultLocation = new LatLng(48.137154, 11.576124); //maps could have default locations based on regions
 
     private GoogleMap mMap;
+
+    //RealtimeDB
+    private FirebaseDatabase mFirebaseDatabase; //main access point
+    private DatabaseReference refLocation;      //pointer to root node
+    private ChildEventListener mChildEventListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,13 +88,46 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar_easy);
         setSupportActionBar(toolbar);
 
+        // Initialize RealtimeDB
+        mFirebaseDatabase = FirebaseDatabase.getInstance();
+        refLocation = mFirebaseDatabase.getReference().child("location").child(FirebaseAuth.getInstance().getCurrentUser().getUid());
+
         //Your GoogleApiClient instance will automatically connect after your activity calls onStart() and disconnect after calling onStop()
         mGoogleApiClient = new GoogleApiClient.Builder(MapsActivity.this)
                 .addApi(LocationServices.API)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .build();
+        /*
+        * Connects the client to Google Play services. This method returns immediately, and connects to the service in the background.
+        * If the connection is successful, onConnected(Bundle) is called and enqueued items are executed.
+        * On a failure, onConnectionFailed(ConnectionResult) is called.
+        * If the client is already connected or connecting, this method does nothing.
+        */
         mGoogleApiClient.connect(); //calls onConnected when ready
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        try {
+            if (mGoogleApiClient.isConnected()) startLocationUpdates();
+        } catch (SecurityException se) {
+            Toast.makeText(this, "removeLocationUpdates", Toast.LENGTH_SHORT).show();
+            se.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        try {//java.lang.RuntimeException: Unable to pause activity {com.demo.mosisapp/com.demo.mosisapp.MapsActivity}: java.lang.IllegalStateException: GoogleApiClient is not connected yet.
+            if (mGoogleApiClient.isConnected()) LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient,this);
+        } catch (SecurityException se) {
+            Toast.makeText(this, "removeLocationUpdates", Toast.LENGTH_SHORT).show();
+            se.printStackTrace();
+        }
+        //mGoogleApiClient.disconnect();
     }
 
     /**
@@ -94,8 +143,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
-        mMap.setMyLocationEnabled(true);
-        mMap.getUiSettings().setMyLocationButtonEnabled(true);
+        mMap.setMyLocationEnabled(true); // shows realtime blue dot (me) on map
+        mMap.getUiSettings().setMyLocationButtonEnabled(true); // ze button
+
         mLastKnownLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         if (mLastKnownLocation == null) {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation,DEFAULT_ZOOM));
@@ -110,7 +160,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             mMap.addMarker(new MarkerOptions()
                     .title(getString(R.string.default_info_title))
                     .position(me)
-                    .snippet(getString(R.string.default_info_snippet)));
+                    .snippet(getString(R.string.default_info_snippet))
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
+                    //.alpha(0.7f)
         }
     }
 
@@ -135,6 +187,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 FirebaseAuth.getInstance().signOut();
                 finish();
                 break;
+            case (R.id.myprofile_menu):
+                Intent mine = new Intent(MapsActivity.this, MyProfileActivity.class);
+                startActivity(mine);
+                break;
         }
 
         return super.onOptionsItemSelected(item);
@@ -142,6 +198,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onBackPressed() {
+        //mGoogleApiClient.disconnect(); //documentation: connect/disconnect is automatic onstart/stop????
         Intent escape = new Intent();
         setResult(RESULT_OK, escape);
         finish();
@@ -153,21 +210,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
-
-        // Get last known recent location.
-        Location mCurrentLocation = null;
-        try {
-            mCurrentLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        } catch (SecurityException se) {
-            Log.d("DEBUG", "onConnected: " + se.getMessage());
-        }
-        // Note that this can be NULL if last location isn't already known.
-        if (mCurrentLocation != null) {
-            // Print current location if not null
-            Log.d("DEBUG", "current location: " + mCurrentLocation.toString());
-            //LatLng latLng = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
-        }
+        mapFragment.getMapAsync(this); // calls onMapReady when ready
         // Begin polling for new location updates.
         startLocationUpdates();
     }
@@ -196,9 +239,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Double.toString(location.getLatitude()) + "," +
                 Double.toString(location.getLongitude());
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        LocationBean beanie = new LocationBean(new Date(),location.getLatitude(),location.getLongitude());
+        refLocation.setValue(beanie);
         // You can now create a LatLng Object for use with maps
         LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
         mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+
     }
 
     // Trigger new location updates at interval
