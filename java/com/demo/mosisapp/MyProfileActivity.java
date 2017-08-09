@@ -238,6 +238,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         // While getDefaultSharedPreferences () returns the application's global preferences.
         SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
         SharedPreferences.Editor editor = data.edit();
+        editor.putString("username",me.getUsername());
         editor.putString("first",me.getName());
         editor.putString("last",me.getLastName());
         editor.putString("phone",me.getPhone());
@@ -412,7 +413,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         if (imageBitmap == null)
         {
             clearPreferences(); // Update is async, so clearing will prevent reading old data
-            ProfileBean profile = new ProfileBean(me.getPhotoUrl().toString(), usern, first, last, phone);
+            ProfileBean profile = new ProfileBean(me.getPhotoUrl().toString(), usern, first, last, phone, null);
             savePreferences(profile);
             screamer.setText("Updating storage data...");screamer.setTextColor(Color.parseColor(red));
             refDB.setValue(profile).addOnCompleteListener(new OnCompleteListener<Void>()
@@ -446,7 +447,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                 return; //check permissions?
             }
             clearPreferences(); // Update is async, so clearing will prevent reading old data
-            savePreferences(new ProfileBean(null, usern, first,last,phone));
+            savePreferences(new ProfileBean(null, usern, first,last,phone, null));
             screamer.setText("Uploading photo...");screamer.setTextColor(Color.parseColor(red));
             // Upload file to Firebase Storage
             StorageReference photoRef = refProfilePics.child("profile");
@@ -474,7 +475,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                                         }
                                     });
                             // Set the download URL in object so that the user can send it to the database
-                            ProfileBean profile = new ProfileBean(downloadUrl.toString(), usern, first, last, phone);
+                            ProfileBean profile = new ProfileBean(downloadUrl.toString(), usern, first, last, phone, null);
                             refDB.setValue(profile).addOnCompleteListener(new OnCompleteListener<Void>()
                             {
                                 @Override
@@ -506,7 +507,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         // Update only text fields
         if (imageBitmap == null) {
             clearPreferences(); // Update is async, so clearing will prevent reading old data
-            ProfileBean profile = new ProfileBean(me.getPhotoUrl().toString(), usern, first, last, phone);
+            ProfileBean profile = new ProfileBean(me.getPhotoUrl().toString(), usern, first, last, phone, null);
             savePreferences(profile);
             screamer.setText("Updating storage data...");
             screamer.setTextColor(Color.parseColor(red));
@@ -545,7 +546,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                 return; //check permissions?
             }
             clearPreferences(); // Update is async, so clearing will prevent reading old data
-            savePreferences(new ProfileBean(null, usern, first, last, phone));
+            savePreferences(new ProfileBean(null, usern, first, last, phone, null));
             screamer.setText("Uploading photo...");
             screamer.setTextColor(Color.parseColor(red));
             // Upload file to Firebase Storage
@@ -575,7 +576,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                                         }
                                     });
                             // Set the download URL in object so that the user can send it to the database
-                            ProfileBean profile = new ProfileBean(downloadUrl.toString(), usern, first, last, phone);
+                            ProfileBean profile = new ProfileBean(downloadUrl.toString(), usern, first, last, phone, null);
                             refDB.setValue(profile).addOnCompleteListener(new OnCompleteListener<Void>()
                             {
                                 @Override

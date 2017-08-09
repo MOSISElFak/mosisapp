@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    tools:context="com.demo.mosisapp.BluetoothFriendActivity"
+    android:weightSum="1" >
+
+    <android.support.design.widget.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:theme="@style/AppTheme.AppBarOverlay">
+
+        <android.support.v7.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            app:popupTheme="@style/AppTheme.PopupOverlay"
+            app:title="BluetoothFriendActivity"/>
+
+    </android.support.design.widget.AppBarLayout>
+
+    <Switch
+        android:id="@+id/bt_main_switch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end|center"
+        android:switchPadding="16dp"
+        android:text="Bluetooth"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_margin="8dp"
+        android:background="@color/Grey_700"
+        android:elevation="1dp"/>
+
+    <TextView
+        android:id="@+id/bt_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:text="Status..."
+        android:textAlignment="center"/>
+
+    <TextView
+        android:id="@+id/bt_status_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:text="MESSAGE..."
+        android:textAlignment="center"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_margin="8dp"
+        android:background="@color/Grey_700"
+        android:elevation="1dp"/>
+
+    <ListView
+        android:id="@+id/pairedListView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:divider="@android:color/transparent"
+        android:stackFromBottom="false"
+        android:transcriptMode="alwaysScroll"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_margin="8dp"
+        android:background="@color/Grey_700"
+        android:elevation="1dp"/>
+
+    <Button
+        android:id="@+id/bt_connect"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Connect"/>
+
+    <Button
+        android:id="@+id/bt_disconnect"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Disconnect"/>
+
+    <Button
+        android:id="@+id/request_send"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Send Request"/>
+
+    <Button
+        android:id="@+id/request_accept"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Accept Request"
+        android:visibility="invisible"/>
+
+    <Button
+        android:id="@+id/request_deny"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Deny Request"
+        android:visibility="invisible"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_margin="8dp"
+        android:background="@color/Grey_700"
+        android:elevation="1dp"/>
+
+    <ImageView
+        android:id="@+id/request_pic"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:src="@drawable/ic_action_add_person"/>
+
+    <TextView
+        android:id="@+id/request_name1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:text="@string/username"
+        android:textAlignment="center"
+        android:textAllCaps="false"/>
+
+    <TextView
+        android:id="@+id/request_name2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/full_name_filler"
+        android:textAlignment="center"
+        android:textAllCaps="true"/>
+</LinearLayout>

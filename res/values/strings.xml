@@ -41,4 +41,21 @@
     <string name="default_info_title">Beaverhausen</string>
     <string name="default_info_snippet">Anastasia Beaverhausen</string>
     <string name="title_activity_profile">ProfileActivity</string>
+
+    <!-- Blutooth -->
+    <string name="bt_no_device">Bluetooth device not detected</string>
+    <string name="button_scan">Scan for devices</string>
+    <string name="none_paired">No paired devices</string>
+    <string name="none_found">No devices found</string>
+    <string name="select_device">Please select device</string>
+    <string name="scanning">Scanning...</string>
+    <string name="title_paired_devices">Paired devices</string>
+    <string name="title_other_devices">Found devices</string>
+    <string name="not_connected">Not connected</string>
+    <string name="title_connected_to">Connected to</string>
+    <string name="title_connecting">Connecting...</string>
+    <string name="title_not_connected">Not connected</string>
+    <string name="title_all_devices">Devices available</string>
+    <string name="username">username</string>
+    <string name="full_name_filler">First Last Name</string>
 </resources>

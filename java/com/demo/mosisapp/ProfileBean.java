@@ -9,16 +9,18 @@ public class ProfileBean
     private String name;
     private String lastName;
     private String phone;
+    private String reserve;
 
     //ctor
     public ProfileBean() {}
 
-    public ProfileBean(String photoUrl, String username, String name, String lastName, String phone) {
+    public ProfileBean(String photoUrl, String username, String name, String lastName, String phone, String reserve) {
         this.photoUrl = photoUrl;
         this.username = username;
         this.name = name;
         this.lastName = lastName;
         this.phone = phone;
+        this.reserve = reserve;
     }
 
     //get set
@@ -60,5 +62,13 @@ public class ProfileBean
 
     public void setPhotoUrl(String photoUrl) {
         this.photoUrl = photoUrl;
+    }
+
+    public String getReserve() {
+        return reserve;
+    }
+
+    public void setReserve(String reserve) {
+        this.reserve = reserve;
     }
 }
