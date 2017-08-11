@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_margin="16dp"
+    android:gravity="center_vertical|center_horizontal"
+    android:orientation="vertical"
+    android:weightSum="1"
+    tools:context="com.demo.mosisapp.ProfileActivity">
+
+    <ImageView
+        android:id="@+id/profile_pic"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="0.8"
+        android:adjustViewBounds="false"
+        android:contentDescription="@string/logo_description"
+        android:scaleType="centerInside"
+        app:srcCompat="@drawable/logo_fsociety_smal"/>
+
+    <TextView
+        style="@android:style/Widget.DeviceDefault.TextView.SpinnerItem"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:elevation="2dp"
+        android:gravity="center"
+        android:padding="8dp"
+        android:shadowColor="@color/Green_A700"
+        android:text="@string/friend_greeting"
+        android:textColorHighlight="@color/Green_A700"
+        android:textColorLink="@color/Amber_A700"
+        android:textStyle="bold|italic"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_username"
+        android:textAlignment="viewStart"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:id="@+id/profile_username"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:paddingStart="16dp"
+        android:text="@string/default_text"
+        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_realname"
+        android:textAlignment="viewStart"
+        android:textIsSelectable="false"
+        />
+
+    <TextView
+        android:id="@+id/profile_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:paddingStart="16dp"
+        android:text="@string/default_text"
+        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_lastname"
+        android:textAlignment="viewStart"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:id="@+id/profile_last"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:paddingStart="16dp"
+        android:text="@string/default_text"
+        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/prompt_phone"
+        android:textAlignment="viewStart"
+        android:textIsSelectable="false"/>
+
+    <TextView
+        android:id="@+id/profile_phone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:clickable="true"
+        android:onClick="onClick"
+        android:paddingStart="16dp"
+        android:text="@string/default_text"
+        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium"
+        android:textIsSelectable="false"/>
+
+</LinearLayout>

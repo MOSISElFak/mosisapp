@@ -58,4 +58,5 @@
     <string name="title_all_devices">Devices available</string>
     <string name="username">username</string>
     <string name="full_name_filler">First Last Name</string>
+    <string name="friend_greeting">Hello. I am...</string>
 </resources>

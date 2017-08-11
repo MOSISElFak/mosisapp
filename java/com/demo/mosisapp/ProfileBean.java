@@ -1,7 +1,13 @@
 package com.demo.mosisapp;
+
+import android.os.Parcel;
+import android.os.Parcelable;
+
+import java.io.Serializable;
+
 // The class must have a default constructor that takes no arguments.
 // The class must define public getters for the properties to be assigned.
-public class ProfileBean
+public class ProfileBean implements Serializable
 {
     //beans
     private String photoUrl;
