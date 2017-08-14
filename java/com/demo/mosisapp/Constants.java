@@ -31,4 +31,10 @@ public interface Constants
     // Key names received from the BluetoothChatService Handler
     public static final String DEVICE_NAME = "device_name";
     public static final String TOAST = "toast";
+
+    // Database nodes names
+    public static final String USERS = "users";
+    public static final String FRIENDS = "friends";
+    public static final String LOCATIONS = "location";
+    public static final String REQUESTS = "requests";
 }

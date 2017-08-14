@@ -2,7 +2,6 @@ package com.demo.mosisapp;
 
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.os.Parcelable;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -29,13 +28,7 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.storage.FirebaseStorage;
-import com.google.firebase.storage.StorageReference;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class FriendsListActivity extends AppCompatActivity implements AdapterView.OnItemClickListener
 {
@@ -48,8 +41,6 @@ public class FriendsListActivity extends AppCompatActivity implements AdapterVie
     private DatabaseReference refFriends;
     private DatabaseReference refUsers;
     private ChildEventListener mChildEventListener;
-    //FIREBASE STORAGE
-    private FirebaseStorage mFirebaseStorage;
 
     private FriendsListAdapter mAdapter;
 
@@ -70,7 +61,6 @@ public class FriendsListActivity extends AppCompatActivity implements AdapterVie
         //refLocation = mFirebaseDatabase.getReference().child("location").child(user.getUid());
         //refFriends = mFirebaseDatabase.getReference().child("friends").child(user.getUid());
         //refUsers = mFirebaseDatabase.getReference().child("users");
-        mFirebaseStorage = FirebaseStorage.getInstance();
 
         // add a local list for uids?
         //List<ProfileBean> profiles = new ArrayList<>();

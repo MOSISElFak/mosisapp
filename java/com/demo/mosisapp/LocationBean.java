@@ -1,35 +1,23 @@
 package com.demo.mosisapp;
 
+import com.google.android.gms.maps.model.LatLng;
+import com.google.firebase.database.ServerValue;
 import java.text.SimpleDateFormat;
+
 import java.util.Date;
 
 public class LocationBean
 {
     //TODO timestamp: is there an universal timestamp or is it locale dependant (time-zones)
-    private Date timeStamp; //String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+    //private Date timeStamp; //String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
     private Double lat; // -90S ||| +90N
     private Double lon; // -180W --- +180E
 
     public LocationBean() {}
-    /*
+
     public LocationBean(Double lat, Double lon) {
         this.lat = lat;
         this.lon = lon;
-    }*/
-
-    public LocationBean(Date timeStamp, Double lat, Double lon) {
-
-        this.timeStamp = timeStamp;
-        this.lat = lat;
-        this.lon = lon;
-    }
-
-    public Date getTimeStamp() {
-        return timeStamp;
-    }
-
-    public void setTimeStamp(Date timeStamp) {
-        this.timeStamp = timeStamp;
     }
 
     public Double getLat() {
@@ -46,5 +34,9 @@ public class LocationBean
 
     public void setLon(Double lon) {
         this.lon = lon;
+    }
+
+    public LatLng getCoordinates() {
+        return new LatLng(getLat(),getLon());
     }
 }
