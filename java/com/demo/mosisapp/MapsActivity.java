@@ -214,10 +214,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public boolean onMarkerClick(Marker marker) {
                 Log.d("MAP ready", "onMarkerClick");
-                //Intent intent = new Intent(MapsActivity.this, ProfileActivity.class);
+                Intent intent = new Intent(MapsActivity.this, ProfileActivity.class);
                 String extra = hash_marker_id.get(marker);
-                //intent.putExtra("key_id", extra);
-                //startActivity(intent);
+                intent.putExtra("key_id", extra);
+                startActivity(intent);
                 return true;
             }
         });
@@ -235,8 +235,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void detachDatabaseReadListener() {
         if (mChildEventListenerFriends!=null) {
-            for (int i=0; i<friends.size(); i++)
-                refLocation.child(friends.get(i)).removeEventListener(mValueEventListener);
+            //for (int i=0; i<friends.size(); i++)
+            //     refLocation.child(friends.get(i)).removeEventListener(mValueEventListener);
             refMyFriends.removeEventListener(mChildEventListenerFriends);
             //mChildEventListenerFriends = null;
         }
