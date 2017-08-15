@@ -14,10 +14,13 @@
         android:layout_margin="8dp"
         android:layout_weight="0.3"
         android:adjustViewBounds="false"
-        android:cropToPadding="true"
-        android:scaleType="centerCrop"
+        android:cropToPadding="false"
+        android:paddingStart="8dp"
+        android:paddingLeft="8dp"
+        android:scaleType="fitStart"
         android:src="@drawable/ic_action_person"
-        tools:text="icon"/>
+        tools:text="icon"
+        />
 
     <TextView
         android:id="@+id/item_plist_username"
@@ -26,6 +29,7 @@
         android:layout_margin="8dp"
         android:layout_weight="0.3"
         android:gravity="center|start"
+        android:textAlignment="viewStart"
         android:textAppearance="?android:attr/textAppearanceLarge"
         tools:text="label"
         />
@@ -38,6 +42,7 @@
         android:layout_weight="0.4"
         android:gravity="center|start"
         android:textAppearance="?android:attr/textAppearanceSmall"
-        tools:text="property"/>
+        tools:text="property"
+        />
 
 </LinearLayout>

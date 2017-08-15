@@ -2,6 +2,8 @@ package com.demo.mosisapp;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.support.annotation.Nullable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -9,6 +11,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.RequestOptions;
 
 import java.util.List;
 
@@ -32,7 +35,7 @@ public class FriendsListAdapter extends ArrayAdapter<ProfileBean>
             convertView = ((Activity) getContext()).getLayoutInflater().inflate(R.layout.item_profilelist, parent, false);
         }
 
-        ImageView mImage = (ImageView) convertView.findViewById(R.id.item_plist_icon);
+        final ImageView mImage = (ImageView) convertView.findViewById(R.id.item_plist_icon);
         TextView mUsername = (TextView) convertView.findViewById(R.id.item_plist_username);
         TextView mName = (TextView) convertView.findViewById(R.id.item_plist_name);
 
@@ -44,6 +47,7 @@ public class FriendsListAdapter extends ArrayAdapter<ProfileBean>
         if (isPhoto) {
             Glide.with(getContext())
                     .load(beanie.getPhotoUrl())
+                    .apply(RequestOptions.circleCropTransform())
                     .into(mImage);
         }
         return convertView;
