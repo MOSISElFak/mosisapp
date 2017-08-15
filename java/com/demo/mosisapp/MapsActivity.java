@@ -3,10 +3,8 @@ package com.demo.mosisapp;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
 import android.location.Location;
+import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -20,17 +18,12 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+//import static com.bumptech.glide.request.RequestOptions.fitCenterTransform;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.Priority;
-import com.bumptech.glide.TransitionOptions;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.RequestOptions;
-import com.bumptech.glide.request.target.ImageViewTarget;
 import com.bumptech.glide.request.target.SimpleTarget;
-import com.bumptech.glide.request.target.Target;
-//import static com.bumptech.glide.request.RequestOptions.fitCenterTransform;
-import com.bumptech.glide.annotation.GlideModule;
 import com.bumptech.glide.request.transition.Transition;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -53,12 +46,14 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+
+import com.bumptech.glide.annotation.GlideModule;
+import com.bumptech.glide.module.AppGlideModule;
 
 /* (Notes from Google) @SuppressWarnings("MissingPermission") try @SuppressWarnings({"ResourceType"}) or //noinspection MissingPermission
  * Note: If you're using the v7 appcompat library, your activity should instead extend AppCompatActivity, which is a subclass of FragmentActivity. (For more information, read Adding the App Bar)
@@ -95,6 +90,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private DatabaseReference refMyLocation;
     private DatabaseReference refLocation;
     private DatabaseReference refMyFriends;
+    private DatabaseReference refUsers;
 
     // Friends and listeners
     private ChildEventListener mChildEventListenerFriends;
@@ -102,9 +98,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ValueEventListener mValueEventListener;
     private List<String> friends;
 
+    RequestOptions requestOptions;
+
     // Markers
     private HashMap<Marker, String> hash_marker_id;       // for identifying marker when clicked from map
-    private WeakHashMap<String, Marker> hash_id_marker;   // for identifying which marker to update with new location (weak, because it only keeps references)
+    private WeakHashMap<String, Marker> hashWeak_id_marker;   // for identifying which marker to update with new location (weak, because it only keeps references)
+    private HashMap<String,String> map_id_imageloaded;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -116,13 +115,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Initializations
         friends = new ArrayList<>();
         hash_marker_id = new HashMap<>();
-        hash_id_marker = new WeakHashMap<>();
+        hashWeak_id_marker = new WeakHashMap<>();
+        map_id_imageloaded = new HashMap<>();
 
         // Initialize RealtimeDB
         mFirebaseDatabase = FirebaseDatabase.getInstance();
         refMyLocation = mFirebaseDatabase.getReference().child(Constants.LOCATIONS).child(FirebaseAuth.getInstance().getCurrentUser().getUid());
         refLocation = mFirebaseDatabase.getReference().child(Constants.LOCATIONS);
         refMyFriends = mFirebaseDatabase.getReference().child(Constants.FRIENDS).child(FirebaseAuth.getInstance().getCurrentUser().getUid());
+        refUsers = mFirebaseDatabase.getReference().child(Constants.USERS);
 
         //Your GoogleApiClient instance will automatically connect after your activity calls onStart() and disconnect after calling onStop()
         mGoogleApiClient = new GoogleApiClient.Builder(MapsActivity.this)
@@ -137,6 +138,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         * If the client is already connected or connecting, this method does nothing.
         */
         mGoogleApiClient.connect(); //calls onConnected when ready
+
+        requestOptions = new RequestOptions()
+                .diskCacheStrategy(DiskCacheStrategy.ALL)                   //DATA(original),RESOURCE(after transformations)
+                .placeholder(R.drawable.ic_action_marker_person_color)      //default icon before loading
+                .fallback(R.drawable.ic_action_marker_person_color)         //default icon in case of null
+                //.fallback(new ColorDrawable(Color.GRAY));
+                .priority(Priority.HIGH)
+                .circleCrop()
+                .override(50,50);
     }
 
     @Override
@@ -225,8 +235,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void detachDatabaseReadListener() {
         if (mChildEventListenerFriends!=null) {
-            //for (int i=0; i<friends.size(); i++)
-            //    refLocation.child(friends.get(i)).removeEventListener(mValueEventListener);
+            for (int i=0; i<friends.size(); i++)
+                refLocation.child(friends.get(i)).removeEventListener(mValueEventListener);
             refMyFriends.removeEventListener(mChildEventListenerFriends);
             //mChildEventListenerFriends = null;
         }
@@ -238,28 +248,48 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (mChildEventListenerLocations==null) { //for this to work, it has to have an additional node <mine>
             mChildEventListenerLocations = new ChildEventListener()
             {
-                String url;
                 @Override
                 public void onChildAdded(DataSnapshot dataSnapshot, String s) {
                     Log.d("locate: onChildAdded",dataSnapshot.getKey());
                     //KEY(mine):VALUE(locationbean.class)
-                    if (dataSnapshot.getKey().equalsIgnoreCase("photourl")) //you got an image
-                    {
-                        url = dataSnapshot.getValue(String.class);
-                        Log.d("locate: onChildAdded",url);
-                    }
-                    else
-                    {
-                        LocationBean bean = dataSnapshot.getValue(LocationBean.class);
-                        String id = dataSnapshot.getRef().getParent().getKey(); //UID
 
-                        MarkerOptions mo = new MarkerOptions();
-                        mo.position(bean.getCoordinates());
-                        mo.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_action_about));
-                        Marker marker = mMap.addMarker(mo);
-                        hash_marker_id.put(marker,id);
-                        hash_id_marker.put(id,marker);
-                    }
+                    final LocationBean bean = dataSnapshot.getValue(LocationBean.class);
+                    final String id = dataSnapshot.getRef().getParent().getKey(); //UID
+
+                    // You can't change the icon once you've created the marker!
+                    // Alternative: add marker, separately download image, find marker from hashmap, create new marker with image and copy data from old marker, and then replace it with the new one.
+                    // Procedure for deleting marker: find mMarker, mMap.setMap(null), delete mMarker
+                    refUsers.child(id).child("photoUrl")
+                            .addListenerForSingleValueEvent(new ValueEventListener()
+                                                            {
+                                                                @Override
+                                                                public void onDataChange(DataSnapshot dataSnapshot) {
+                                                                    Log.d("loadImageMarker",dataSnapshot.getValue(String.class));
+                                                                    Glide.with(MapsActivity.this)
+                                                                            .asBitmap()
+                                                                            .load(dataSnapshot.getValue(String.class))
+                                                                            .apply(requestOptions)
+                                                                            .into(new SimpleTarget<Bitmap>()
+                                                                            {
+                                                                                @Override
+                                                                                public void onResourceReady(Bitmap resource, Transition<? super Bitmap> transition) {
+                                                                                    MarkerOptions mo = new MarkerOptions();
+                                                                                    mo.position(bean.getCoordinates());
+                                                                                    mo.icon(BitmapDescriptorFactory.fromBitmap(resource));
+                                                                                    Marker marker = mMap.addMarker(mo); //has to be like this because "You can't change the icon once you've created the marker."
+                                                                                    hash_marker_id.put(marker,id);
+                                                                                    hashWeak_id_marker.put(id,marker);
+                                                                                    Log.d("onResourceReady: ", id);
+                                                                                }
+                                                                            });
+                                                                }
+
+                                                                @Override
+                                                                public void onCancelled(DatabaseError databaseError) {
+                                                                    Log.d("ERROR: loadImageMarker",databaseError.getMessage());
+                                                                }
+                                                            }
+                            );
                 }
 
                 @Override
@@ -268,7 +298,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     //KEY(mine):VALUE(locationbean.class)
                     LocationBean bean = dataSnapshot.getValue(LocationBean.class);
                     String id = dataSnapshot.getRef().getParent().getKey();
-                    Marker marker = hash_id_marker.get(id);
+                    Marker marker = hashWeak_id_marker.get(id);
                     marker.setPosition(bean.getCoordinates());
                 }
 
@@ -311,8 +341,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 public void onChildRemoved(DataSnapshot dataSnapshot) {
                     Log.d("friends: onChildRemoved",dataSnapshot.getKey());
                     String id = dataSnapshot.getKey();
-                    Marker marker = hash_id_marker.get(id);
-                    hash_id_marker.remove(id); //first remove from weak map with references
+                    Marker marker = hashWeak_id_marker.get(id);
+                    hashWeak_id_marker.remove(id); //first remove from weak map with references
                     hash_marker_id.remove(marker);
                     refLocation.child(id).removeEventListener(mChildEventListenerLocations);
                 }
@@ -420,7 +450,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Create the location request
         mLocationRequest = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(UPDATE_INTERVAL)
+                .setSmallestDisplacement(0.1f)      //  Set the minimum displacement between location updates in meters (tryout)
+                .setInterval(UPDATE_INTERVAL)       // GoogleDoc: 5 seconds would be appropriate for realtime
                 .setFastestInterval(FASTEST_INTERVAL);
         // Request location updates
         try {

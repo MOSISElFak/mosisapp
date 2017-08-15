@@ -39,4 +39,9 @@ public class LocationBean
     public LatLng getCoordinates() {
         return new LatLng(getLat(),getLon());
     }
+
+    @Override
+    public String toString() {
+        return getLat().toString() +".."+ getLon().toString();
+    }
 }
