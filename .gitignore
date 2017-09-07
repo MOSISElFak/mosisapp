@@ -5,3 +5,8 @@ res/mipmap-xxhdpi/ic_launcher.png
 res/mipmap-xhdpi/ic_launcher.png
 res/mipmap-xxxhdpi/ic_launcher.png
 *.png
+java/com/demo/mosisapp/TesterActivity.java
+res/layout/tester_locations.xml
+res/raw/silver_map_with_icons.json
+res/raw/silver_map_no_icons.json
+res/raw/retro_map_no_labels.json
