@@ -6,8 +6,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_margin="8dp"
-    android:orientation="vertical"
-    tools:context="com.demo.mosisapp.PlaceAddActivity">
+    tools:context="com.demo.mosisapp.PlaceAddActivity"
+    android:orientation="vertical">
 
     <TextView
         android:id="@+id/read_label_key"
@@ -31,7 +31,7 @@
 
         <Spinner
             android:id="@+id/add_type_spinner"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
     </LinearLayout>
 
@@ -50,7 +50,7 @@
 
         <Spinner
             android:id="@+id/add_attribute_spinner"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
     </LinearLayout>
 
@@ -72,10 +72,15 @@
 
     <RatingBar
         android:id="@+id/add_layout_ratingBar"
-        android:layout_width="match_parent"
+        style="@style/Widget.AppCompat.RatingBar"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
         android:layout_margin="8dp"
-        android:numStars="5"/>
+        android:numStars="5"
+        android:progressTint="@color/Green_A700"
+        android:rating="0"
+        android:stepSize="1"/>
 
     <View
         android:layout_width="match_parent"

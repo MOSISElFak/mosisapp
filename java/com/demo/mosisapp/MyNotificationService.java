@@ -11,6 +11,9 @@ import android.support.v4.app.NotificationCompat;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
+/*
+* For receiving and displaying notifications sent from Cloud Messaging
+*/
 public class MyNotificationService extends FirebaseMessagingService
 {
 

@@ -18,6 +18,7 @@ package com.demo.mosisapp;
 
 /**
  * Defines several constants used between {@link BluetoothFriendService} and the UI.
+ * Also names for database
  */
 public interface Constants
 {
@@ -33,10 +34,13 @@ public interface Constants
     public static final String TOAST = "toast";
 
     // Database nodes names
-    public static final String USERS = "users";
-    public static final String FRIENDS = "friends";
-    public static final String LOCATIONS = "location";
-    public static final String REQUESTS = "requests";
-    public static final String COORDINATES = "coordinates";
-    public static final String NOTIFICATION = "notification";
+
+    public static String USERS = "users";
+    public static String FRIENDS = "friends";
+    public static String LOCATIONS = "location";
+    public static String REQUESTS = "requests";
+    public static String COORDINATES = "coordinates";
+    public static String NOTIFICATION = "notification";
+    public static String ADDPLACE = "places/original";
+    public static String READPLACE = "places/complete";
 }

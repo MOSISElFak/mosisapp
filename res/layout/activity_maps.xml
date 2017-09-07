@@ -35,7 +35,7 @@
                   tools:context="com.demo.mosisapp.MapsActivity"/>
 
         <android.support.design.widget.FloatingActionButton
-            android:id="@+id/fab_add_place"
+            android:id="@+id/fab"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
@@ -44,7 +44,7 @@
             android:src="@drawable/ic_action_about"
             app:backgroundTint="@color/Green_A700"
             app:elevation="4dp"
-            app:fabSize="normal"
+            app:fabSize="mini"
             app:layout_anchorGravity="bottom|right|end"/>
     </FrameLayout>
 </LinearLayout>
