@@ -36,7 +36,7 @@ public class LocationBean
         this.lon = lon;
     }
 
-    public LatLng getCoordinates() {
+    public LatLng makeCoordinates() {
         return new LatLng(getLat(),getLon());
     }
 

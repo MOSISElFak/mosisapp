@@ -21,12 +21,30 @@
 
     </android.support.design.widget.AppBarLayout>
 
-<fragment xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:map="http://schemas.android.com/apk/res-auto"
-          xmlns:tools="http://schemas.android.com/tools"
-          android:id="@+id/map"
-          android:name="com.google.android.gms.maps.SupportMapFragment"
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          tools:context="com.demo.mosisapp.MapsActivity"/>
+    <!-- because floating action button -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <fragment xmlns:android="http://schemas.android.com/apk/res/android"
+                  xmlns:map="http://schemas.android.com/apk/res-auto"
+                  xmlns:tools="http://schemas.android.com/tools"
+                  android:id="@+id/map"
+                  android:name="com.google.android.gms.maps.SupportMapFragment"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  tools:context="com.demo.mosisapp.MapsActivity"/>
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/fab_add_place"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:adjustViewBounds="false"
+            android:baselineAlignBottom="false"
+            android:src="@drawable/ic_action_about"
+            app:backgroundTint="@color/Green_A700"
+            app:elevation="4dp"
+            app:fabSize="normal"
+            app:layout_anchorGravity="bottom|right|end"/>
+    </FrameLayout>
 </LinearLayout>

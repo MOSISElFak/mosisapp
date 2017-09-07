@@ -14,8 +14,11 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
+
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.FirebaseDatabase;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -34,6 +37,9 @@ public class MainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        //maybe extend Application, add this there
+        if (!FirebaseApp.getApps(this).isEmpty())
+            FirebaseDatabase.getInstance().setPersistenceEnabled(true);
 
         //initalize Firebase
         mFirebaseAuth = FirebaseAuth.getInstance();
@@ -66,8 +72,8 @@ public class MainActivity extends AppCompatActivity
                     // FirebaseUser.getToken() instead.
                     String uid = user.getUid();
                     Log.d(myTag, "onAuthStateChanged: signed_in:" + user.getUid());
-                    //Intent go = new Intent(MainActivity.this, MapsActivity.class);
-                    Intent go = new Intent(MainActivity.this, BluetoothFriendActivity.class);
+                    //Intent go = new Intent(MainActivity.this, TesterActivity.class);
+                    Intent go = new Intent(MainActivity.this, MapsActivity.class);
                     startActivityForResult(go, RC_MAIN);
                 } else {
                     // user is signed out, show logInFlow

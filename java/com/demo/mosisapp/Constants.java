@@ -37,4 +37,6 @@ public interface Constants
     public static final String FRIENDS = "friends";
     public static final String LOCATIONS = "location";
     public static final String REQUESTS = "requests";
+    public static final String COORDINATES = "coordinates";
+    public static final String NOTIFICATION = "notification";
 }

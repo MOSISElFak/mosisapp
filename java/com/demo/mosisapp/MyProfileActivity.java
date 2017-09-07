@@ -51,7 +51,7 @@ import java.util.List;
 // TODO remove sharedPreferences on app logout
 // TODO remove profilePic on app logout
 // Subscribing your listeners with an activity scope to automatically unregister them when the activity stops
-
+// TODO use glide
 public class MyProfileActivity extends AppCompatActivity implements View.OnClickListener
 {
     private TextView screamer; String green="#00C853"; String red="#D32F2F";

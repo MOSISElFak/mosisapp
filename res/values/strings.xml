@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">MosisApp</string>
     <string name="action_settings">Settings</string>
+    <string name="service_description">"Allows for realtime updates and notifications."</string>
 
     <!-- Authentication -->
     <string name="sign_out_menu">Sign Out</string>
@@ -59,4 +60,14 @@
     <string name="username">username</string>
     <string name="full_name_filler">First Last Name</string>
     <string name="friend_greeting">Hello. I am...</string>
+    <string name="title_activity_place_add">Add Place</string>
+
+    <!-- Places -->
+    <string name="add_label_type">Type:</string>
+    <string name="add_label_attribute">Attribute:</string>
+    <string name="add_label_Description">Description</string>
+    <string name="add_button_cancel">Cancel</string>
+    <string name="add_button_post">Post</string>
+    <string name="read_button_delete">Delete</string>
+
 </resources>

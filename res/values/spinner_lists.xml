@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="add_type_spinner_array">
+        <item>Plastic|Paper</item>
+        <item>Glass</item>
+        <item>Pfand</item>
+        <item>Clothes</item>
+    </string-array>
+
+    <string-array name="add_attr_spinner_array">
+        <item>Attribute1</item>
+        <item>Attribute2</item>
+        <item>Attribute3</item>
+        <item>Attribute4</item>
+    </string-array>
+</resources>

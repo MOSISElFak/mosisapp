@@ -83,6 +83,7 @@ public class ProfileActivity extends AppCompatActivity
                 .onlyRetrieveFromCache(true) // We have to see it to click on it, ensuring it will be in cache
                 .into(mPic);
 
+
         mUsername.setText(friend.getUsername());
         mName.setText(friend.getName());
         mLast.setText(friend.getLastName());

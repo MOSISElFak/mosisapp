@@ -2,9 +2,9 @@ package com.demo.mosisapp;
 
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.location.Location;
-import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -18,7 +18,6 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.widget.Toast;
 
-//import static com.bumptech.glide.request.RequestOptions.fitCenterTransform;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.Priority;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
@@ -36,6 +35,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.auth.FirebaseAuth;
@@ -45,15 +45,13 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.messaging.FirebaseMessaging;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.WeakHashMap;
-
-import com.bumptech.glide.annotation.GlideModule;
-import com.bumptech.glide.module.AppGlideModule;
 
 /* (Notes from Google) @SuppressWarnings("MissingPermission") try @SuppressWarnings({"ResourceType"}) or //noinspection MissingPermission
  * Note: If you're using the v7 appcompat library, your activity should instead extend AppCompatActivity, which is a subclass of FragmentActivity. (For more information, read Adding the App Bar)
@@ -64,10 +62,11 @@ import com.bumptech.glide.module.AppGlideModule;
  */
 //
 //public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback,
-        GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener,
-        LocationListener
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback
+        ,GoogleApiClient.ConnectionCallbacks
+        ,GoogleApiClient.OnConnectionFailedListener
+        ,LocationListener, GoogleMap.OnMapLongClickListener
+        //,GoogleMap.OnMapLongClickListener
 {
     private boolean mLocationPermissionGranted = false;
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
@@ -103,7 +102,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // Markers
     private HashMap<Marker, String> hash_marker_id;       // for identifying marker when clicked from map
     private WeakHashMap<String, Marker> hashWeak_id_marker;   // for identifying which marker to update with new location (weak, because it only keeps references)
-    private HashMap<String,String> map_id_imageloaded;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,11 +110,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar_easy);
         setSupportActionBar(toolbar);
 
+        //findViewById(R.id.map).setVisibility(View.INVISIBLE);
+
         // Initializations
         friends = new ArrayList<>();
         hash_marker_id = new HashMap<>();
         hashWeak_id_marker = new WeakHashMap<>();
-        map_id_imageloaded = new HashMap<>();
 
         // Initialize RealtimeDB
         mFirebaseDatabase = FirebaseDatabase.getInstance();
@@ -147,6 +146,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .priority(Priority.HIGH)
                 .circleCrop()
                 .override(50,50);
+
+        mMap.setOnMapLongClickListener(this);
     }
 
     @Override
@@ -158,6 +159,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "removeLocationUpdates", Toast.LENGTH_SHORT).show();
             se.printStackTrace();
         }
+        //Intent intent = getIntent();
+        //if (intent.hasExtra("NotificationMessage"))
+        //    Toast.makeText(getApplicationContext(), "onResume: " + intent.getStringExtra("NotificationMessage"), Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -185,7 +189,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override @SuppressWarnings("MissingPermission")
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        //mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);//HYBRID =satelite+terrain, TERRAIN =roads
+        //googleMap.getUiSettings().setMapToolbarEnabled(false); //for not displaying bottom toolbar
+        try {
+            // Customise the styling of the base map using a JSON object defined in a raw resource file.
+            boolean success = googleMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.map_retro));
 
+            if (!success) {
+                Log.e("OnMapReady", "Style parsing failed.");
+            }
+        } catch (Resources.NotFoundException e) {
+            Log.e("OnMapReady", "Can't find style. Error: ", e);
+        }
+
+        //findViewById(R.id.map).setVisibility(View.VISIBLE);
         //mMap.setMyLocationEnabled(true); // shows realtime blue dot (me) on map
         //mMap.getUiSettings().setMyLocationButtonEnabled(true); // ze button
 
@@ -251,7 +268,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 @Override
                 public void onChildAdded(DataSnapshot dataSnapshot, String s) {
                     Log.d("locate: onChildAdded",dataSnapshot.getKey());
-                    //KEY(mine):VALUE(locationbean.class)
+                    //KEY(coordinates):VALUE(locationbean.class)
 
                     final LocationBean bean = dataSnapshot.getValue(LocationBean.class);
                     final String id = dataSnapshot.getRef().getParent().getKey(); //UID
@@ -261,45 +278,45 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     // Procedure for deleting marker: find mMarker, mMap.setMap(null), delete mMarker
                     refUsers.child(id).child("photoUrl")
                             .addListenerForSingleValueEvent(new ValueEventListener()
-                                                            {
-                                                                @Override
-                                                                public void onDataChange(DataSnapshot dataSnapshot) {
-                                                                    Log.d("loadImageMarker",dataSnapshot.getValue(String.class));
-                                                                    Glide.with(MapsActivity.this)
-                                                                            .asBitmap()
-                                                                            .load(dataSnapshot.getValue(String.class))
-                                                                            .apply(requestOptions)
-                                                                            .into(new SimpleTarget<Bitmap>()
-                                                                            {
-                                                                                @Override
-                                                                                public void onResourceReady(Bitmap resource, Transition<? super Bitmap> transition) {
-                                                                                    MarkerOptions mo = new MarkerOptions();
-                                                                                    mo.position(bean.getCoordinates());
-                                                                                    mo.icon(BitmapDescriptorFactory.fromBitmap(resource));
-                                                                                    Marker marker = mMap.addMarker(mo); //has to be like this because "You can't change the icon once you've created the marker."
-                                                                                    hash_marker_id.put(marker,id);
-                                                                                    hashWeak_id_marker.put(id,marker);
-                                                                                    Log.d("onResourceReady: ", id);
-                                                                                }
-                                                                            });
-                                                                }
+                            {
+                                @Override
+                                public void onDataChange(DataSnapshot dataSnapshot) {
+                                    Log.d("loadImageMarker",dataSnapshot.getValue(String.class));
+                                    Glide.with(MapsActivity.this)
+                                            .asBitmap()
+                                            .load(dataSnapshot.getValue(String.class))
+                                            .apply(requestOptions)
+                                            .into(new SimpleTarget<Bitmap>()
+                                            {
+                                                @Override
+                                                public void onResourceReady(Bitmap resource, Transition<? super Bitmap> transition) {
+                                                    MarkerOptions mo = new MarkerOptions();
+                                                    mo.position(bean.makeCoordinates());
+                                                    mo.icon(BitmapDescriptorFactory.fromBitmap(resource));
+                                                    Marker marker = mMap.addMarker(mo); //has to be like this because "You can't change the icon once you've created the marker."
+                                                    hash_marker_id.put(marker,id);
+                                                    hashWeak_id_marker.put(id,marker);
+                                                    Log.d("onResourceReady: ", id);
+                                                }
+                                            });
+                                }
 
-                                                                @Override
-                                                                public void onCancelled(DatabaseError databaseError) {
-                                                                    Log.d("ERROR: loadImageMarker",databaseError.getMessage());
-                                                                }
-                                                            }
+                                @Override
+                                public void onCancelled(DatabaseError databaseError) {
+                                    Log.d("ERROR: loadImageMarker",databaseError.getMessage());
+                                }
+                            }
                             );
                 }
 
                 @Override
                 public void onChildChanged(DataSnapshot dataSnapshot, String s) {
                     Log.d("locate: onChildChanged",dataSnapshot.getKey());
-                    //KEY(mine):VALUE(locationbean.class)
+                    //KEY(coordinates):VALUE(locationbean.class)
                     LocationBean bean = dataSnapshot.getValue(LocationBean.class);
                     String id = dataSnapshot.getRef().getParent().getKey();
                     Marker marker = hashWeak_id_marker.get(id);
-                    marker.setPosition(bean.getCoordinates());
+                    marker.setPosition(bean.makeCoordinates());
                 }
 
                 @Override
@@ -408,6 +425,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mapFragment.getMapAsync(this); // calls onMapReady when ready
         // Begin polling for new location updates.
         startLocationUpdates();
+        FirebaseMessaging.getInstance().subscribeToTopic("close");
     }
 
     @Override
@@ -437,7 +455,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         LocationBean beanie = new LocationBean(location.getLatitude(),location.getLongitude());
         //LocationBean beanie = new LocationBean(ServerValue.TIMESTAMP, location.getLatitude(),location.getLongitude());
-        refMyLocation.setValue(beanie);
+        refMyLocation.child(Constants.COORDINATES).setValue(beanie);
         // You can now create a LatLng Object for use with maps
         LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
         mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
@@ -468,5 +486,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         } else {
             ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
         }
+    }
+
+    /**
+     * Handle onNewIntent() to inform the fragment manager that the
+     * state is not saved.  If you are handling new intents and may be
+     * making changes to the fragment state, you want to be sure to call
+     * through to the super-class here first.  Otherwise, if your state
+     * is saved but the activity is not stopped, you could get an
+     * onNewIntent() call which happens before onResume() and trying to
+     * perform fragment operations at that point will throw IllegalStateException
+     * because the fragment manager thinks the state is still saved.
+     *
+     * @param intent
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        Bundle extras = intent.getExtras();
+        if(extras!=null) {
+            if (extras.containsKey("NotificationMessage")) {
+                Toast.makeText(getApplicationContext(), "onNewIntent: " + extras.getString("NotificationMessage"), Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    @Override
+    public void onMapLongClick(LatLng latLng) {
+        Intent addPlace = new Intent(this, PlaceAddActivity.class);
+        addPlace.putExtra("place_lat", latLng.latitude);
+        addPlace.putExtra("place_lon", latLng.longitude);
     }
 }
