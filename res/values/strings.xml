@@ -79,4 +79,7 @@
     <string name="geo_too_many_pending">You have provided too many PendingIntents to the addGeo...</string>
     <string name="geo_unknown_error">Unknown error: the Geofence service is not available right now.</string>
 
+    <!-- Scoreboard -->
+    <string name="title_activity_scoreboard">Top 10</string>
+
 </resources>

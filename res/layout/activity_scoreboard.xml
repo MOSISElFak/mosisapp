@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.design.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    tools:context="com.demo.mosisapp.ScoreboardActivity">
+
+    <android.support.design.widget.AppBarLayout
+        android:id="@+id/app_bar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:fitsSystemWindows="true"
+        android:theme="@style/AppBarOverlay">
+
+            <android.support.v7.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:popupTheme="@style/PopupOverlay"/>
+
+    </android.support.design.widget.AppBarLayout>
+
+    <android.support.v4.widget.SwipeRefreshLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/swiperefresh"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" >
+
+        <ListView
+            android:id="@+id/scoreboard_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+
+            android:layout_gravity="bottom"
+            app:layout_anchor="@id/app_bar"
+            app:layout_anchorGravity="bottom"
+
+            android:animateLayoutChanges="true"
+            android:divider="@color/Grey_700"
+            android:dividerHeight="1dp"
+            android:transcriptMode="alwaysScroll"
+            tools:listitem="@layout/item_scorelist"/>
+
+    </android.support.v4.widget.SwipeRefreshLayout>
+</android.support.design.widget.CoordinatorLayout>
+<!--
+<android.support.v4.widget.SwipeRefreshLayout
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" !!!in the list wrapper 32959820
+
+        OR
+            android:layout_marginTop="?attr/actionBarSize"
+        INSTEAD OF
+            marginTop
+            app:layout_behavior="@string/appbar_scrolling_view_behavior"
+
+ <ListView
+    app:layout_anchor="@id/app_bar"
+    android:layout_gravity="bottom"
+    app:layout_anchorGravity="bottom"
+-->
