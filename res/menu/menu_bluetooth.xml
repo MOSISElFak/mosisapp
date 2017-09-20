@@ -1,0 +1,11 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+      xmlns:app="http://schemas.android.com/apk/res-auto"
+      xmlns:tools="http://schemas.android.com/tools"
+      tools:context="com.demo.mosisapp.BluetoothFriendActivity">
+    <item
+        android:id="@+id/bt_on_off_item"
+        android:orderInCategory="100"
+        android:title="Bluetooth"
+        android:icon="@drawable/ic_action_bluetooth_searching"
+        app:showAsAction="always"/>
+</menu>

@@ -188,7 +188,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     }
 
     @Override
-    public void onBackPressed() { //this is just for fun, returns to choice login/register
+    public void onBackPressed() { //returns to choice login/register
         if (letMeOut) super.onBackPressed();
         else if(forgetmenot) {
             forgetmenot = false;

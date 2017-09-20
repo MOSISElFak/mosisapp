@@ -128,12 +128,6 @@
         </activity>
 
         <service
-            android:name=".MainAppService"
-            android:description="@string/service_main_description"
-            android:enabled="true"
-            android:exported="false">
-        </service>
-        <service
             android:name=".MyLocationService"
             android:enabled="true"
             android:exported="false"
