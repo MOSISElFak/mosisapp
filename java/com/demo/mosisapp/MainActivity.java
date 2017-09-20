@@ -15,15 +15,17 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.GetTokenResult;
 import com.google.firebase.database.FirebaseDatabase;
 
 public class MainActivity extends AppCompatActivity
 {
-    private static final String myTag = "wassermelone";
-    private static final String anon = "anonymous?";    //not expected to happen
+    private final String TAG = "MainActivity";
     private static final int RC_MAIN = 124;
 
     //firebase authentication
@@ -33,62 +35,55 @@ public class MainActivity extends AppCompatActivity
 
     protected void onCreate(Bundle savedInstanceState)
     {
+        Log.d(TAG, "onCreate");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         //maybe extend Application, add this there
-        if (!FirebaseApp.getApps(this).isEmpty())
-            FirebaseDatabase.getInstance().setPersistenceEnabled(true);
+        //if (!FirebaseApp.getApps(this).isEmpty())
+        //    FirebaseDatabase.getInstance().setPersistenceEnabled(true);
 
         //initalize Firebase
         mFirebaseAuth = FirebaseAuth.getInstance();
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener()
-        {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
-
-        mAuthStateListener = new FirebaseAuth.AuthStateListener()
-        {
-            @Override
-            public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
-                //check if user is logged in...
-                FirebaseUser user = firebaseAuth.getCurrentUser();
-                if (user != null) {
-                    // User is signed in
-                    // Name, email address, and profile photo Url
-                    String name = user.getDisplayName();
-                    String email = user.getEmail();
-                    Uri photoUrl = user.getPhotoUrl();
-                    user.getToken(true);
-                    // The user's ID, unique to the Firebase project. Do NOT use this value to
-                    // authenticate with your backend server, if you have one. Use
-                    // FirebaseUser.getToken() instead.
-                    String uid = user.getUid();
-                    Log.d(myTag, "onAuthStateChanged: signed_in:" + user.getUid());
-                    //Intent go = new Intent(MainActivity.this, TesterActivity.class);
-                    Intent go = new Intent(MainActivity.this, MapsActivity.class);
-                    startActivityForResult(go, RC_MAIN);
-                } else {
-                    // user is signed out, show logInFlow
-                    Log.d(myTag, "onAuthStateChanged: signed_out");
-                    Intent login = new Intent(MainActivity.this, LoginActivity.class);
-                    startActivityForResult(login, RC_SIGN_IN);
+        if (mAuthStateListener==null) {
+            Log.d(TAG, "onAuthStateChanged: create");
+            mAuthStateListener = new FirebaseAuth.AuthStateListener()
+            {
+                @Override
+                public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
+                    Log.d("MainActivity", "onAuthStateChanged");
+                    //check if user is logged in...
+                    FirebaseUser user = firebaseAuth.getCurrentUser();
+                    if (user != null)
+                    {
+                        Log.d(TAG, "onAuthStateChanged: signed_in:" + user.getUid());
+                        MosisApp.getInstance().logoutFlag = false;
+                        //Intent go = new Intent(MainActivity.this, MapsActivity.class);
+                        Intent go = new Intent(MainActivity.this, BluetoothFriendActivity.class);
+                        go.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        startActivityForResult(go, RC_MAIN);
+                        //startActivity(go);
+                    }
+                    else
+                    {
+                        // user is signed out, show logInFlow
+                        Log.d(TAG, "onAuthStateChanged: signed out");
+                        Intent login = new Intent(MainActivity.this, LoginActivity.class);
+                        login.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        startActivityForResult(login, RC_SIGN_IN);
+                    }
                 }
-            }
-        };
+            };
+        }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == RC_SIGN_IN){
+            Log.d(TAG, "onActivityResult: RC_SIGN_IN");
             if (resultCode== Activity.RESULT_OK) {
                 Toast.makeText(this, "Signed in!", Toast.LENGTH_SHORT).show();
             }else if (resultCode == RESULT_CANCELED){ //if user cancels the sign in
@@ -96,7 +91,13 @@ public class MainActivity extends AppCompatActivity
                 finish(); //so that you can actually leave
             }else Toast.makeText(this, "Well, we returned", Toast.LENGTH_SHORT).show();
         }
-        else if (requestCode == RC_MAIN) {finish();}
+        else if (requestCode == RC_MAIN) {
+            Log.d(TAG, "onActivityResult: RC_MAIN");
+            if (MosisApp.getInstance().logoutFlag) {
+                FirebaseAuth.getInstance().signOut();
+            }
+            finish();
+        }
     }
 
     @Override
@@ -119,13 +120,13 @@ public class MainActivity extends AppCompatActivity
             mFirebaseAuth.signOut();
             return true;
         }
-
         return super.onOptionsItemSelected(item);
     }
 
     @Override //onPause or onStop?
     protected void onPause() {
         super.onPause();
+        Log.d(TAG, "onPause");
         if (mAuthStateListener != null) {
             mFirebaseAuth.removeAuthStateListener(mAuthStateListener);
         }
@@ -134,6 +135,7 @@ public class MainActivity extends AppCompatActivity
     @Override //onResume or onStart?
     protected void onResume() {
         super.onResume();
+        Log.d(TAG, "onResume");
         mFirebaseAuth.addAuthStateListener(mAuthStateListener);
     }
 }
