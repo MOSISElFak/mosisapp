@@ -1,66 +1,40 @@
 package com.demo.mosisapp;
 
-import android.*;
-import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
-import android.os.Build;
-import android.os.Bundle;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
-import android.text.Html;
-import android.text.method.LinkMovementMethod;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-
+//NOTE: ProgressBar causes "D/Surface: Surface::setBuffersDimensions..." logcat spam
+// (also indeterminate or not and horizontal or not and adding actual numbered dimensions or not)
+//NOTE: for using Bluetooth you need to have permissions to use BLUETOOTH_ADMIN !!!AND!!! ACCESS_FINE_LOCATION
 public class BluetoothDeviceListActivity extends AppCompatActivity
 {
-    private static final int REQUEST_ACCESS_FINE_LOCATION = 17;
+    private final String TAG = "BtDeviceListActivity";
     public static String EXTRA_DEVICE_ADDRESS = "device_address";
     private BluetoothAdapter mBtAdapter;
-
+    private ProgressBar bar;
     private DeviceArrayAdapter mDevAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bluetooth_device_list);
+        bar = (ProgressBar)findViewById(R.id.progressBarSearching);
 
         // Set result CANCELED in case the user backs out
         setResult(Activity.RESULT_CANCELED);
-
-        // Initialize the button to perform device discovery
-        Button scanButton = (Button) findViewById(R.id.button_scan);
-        scanButton.setOnClickListener(new View.OnClickListener()
-        {
-            public void onClick(View v) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {  // Only ask for these permissions on runtime when running Android 6.0 or higher
-                    if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) { // because asking for bluetooth doesn't help ya
-                        ActivityCompat.requestPermissions(BluetoothDeviceListActivity.this,new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_ACCESS_FINE_LOCATION);
-                    }
-                }
-                doDiscovery();
-                v.setVisibility(View.GONE);
-            }
-        });
 
         // Initialize ArrayAdapter for custom ListView
         mDevAdapter = new DeviceArrayAdapter(this, R.layout.item_paired);
@@ -84,8 +58,15 @@ public class BluetoothDeviceListActivity extends AppCompatActivity
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        doDiscovery();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.d(TAG,"onDestroy");
 
         // Make sure we're not doing discovery anymore
         if (mBtAdapter != null) {
@@ -100,13 +81,12 @@ public class BluetoothDeviceListActivity extends AppCompatActivity
      * Start device discover with the BluetoothAdapter
      */
     private void doDiscovery() {
+        Log.d(TAG,"doDiscovery");
 
         // Indicate scanning in the title
-        //setProgressBarIndeterminateVisibility(true);
+        bar.setVisibility(View.VISIBLE);
         setTitle(R.string.scanning);
 
-        // Turn on sub-title for new devices
-        //findViewById(R.id.title_all_devices).setVisibility(View.VISIBLE);
 
         // If we're already discovering, stop it
         if (mBtAdapter.isDiscovering()) {
@@ -143,66 +123,38 @@ public class BluetoothDeviceListActivity extends AppCompatActivity
      * The BroadcastReceiver that listens for discovered devices and changes the title when
      * discovery is finished
      */
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver()
+    {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
 
             // When discovery finds a device
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                Toast.makeText(getApplicationContext(), "DEVICE FOUND", Toast.LENGTH_LONG).show();
                 // Get the BluetoothDevice object from the Intent
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                Log.d(TAG,"BroadcastReceiver,onReceive: DEVICE FOUND: "+device.getName());
                 mDevAdapter.add(device);
-/*
-                // If it's already paired, skip it, because it's been listed already
-                if (device.getBondState() != BluetoothDevice.BOND_BONDED) { //Indicates the remote device is bonded (paired).
-                    mNewDevicesArrayAdapter.add(device.getName() + "\n" + device.getAddress());
-                }
-*/
+
                 // When discovery is finished, change the Activity title
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-                //setProgressBarIndeterminateVisibility(false);
-                setTitle(R.string.none_found);
+                Log.d(TAG,"BroadcastReceiver,onReceive: ACTION_DISCOVERY_FINISHED "+mDevAdapter.getCount());
+
+                bar.setVisibility(View.INVISIBLE);
+
                 if (mDevAdapter.getCount() == 0) {
-                    findViewById(R.id.title_status).setVisibility(View.VISIBLE);
+                    setTitle(R.string.none_found);
                     findViewById(R.id.title_all_devices).setVisibility(View.INVISIBLE);
                 }
-/*
-                if (mNewDevicesArrayAdapter.getCount() == 0) {
-                    String noDevices = getResources().getText(R.string.none_found).toString();
-                    mNewDevicesArrayAdapter.add(noDevices);
+                else {
+                    setTitle(R.string.title_other_devices);
                 }
-*/
+
+                // When discovery starts, change the Activity title
             } else if (BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
-                Toast.makeText(getApplicationContext(), "DISCOVERY STARTED", Toast.LENGTH_LONG).show();
+                setTitle(R.string.scanning);
+                Log.d(TAG,"BroadcastReceiver,onReceive: ACTION_DISCOVERY_STARTED");
             }
         }
     };
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
-        switch (requestCode) {
-            case REQUEST_ACCESS_FINE_LOCATION: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                    // permission was granted, yay!
-                    doDiscovery();
-                    findViewById(R.id.button_scan).setVisibility(View.GONE);
-
-                } else {
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
-                    Toast.makeText(getApplicationContext(),"Permission denied", Toast.LENGTH_SHORT).show();
-                    finish();
-                }
-                return;
-            }
-
-            // other 'case' lines to check for other
-            // permissions this app might request
-        }
-    }
 }

@@ -1,11 +1,9 @@
 package com.demo.mosisapp;
 
-import android.*;
 import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -19,12 +17,12 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -42,48 +40,38 @@ import com.google.firebase.storage.FirebaseStorage;
 
 import java.io.File;
 
-// TODO what if they're already friends
 public class BluetoothFriendActivity extends AppCompatActivity implements View.OnClickListener
 {
-    private static final String TAG = "BluetoothFriendActivity";
+    private final String TAG = "BluetoothFriendActivity";
     // Intent request codes
-    private static final int REQUEST_CONNECT_DEVICE_SECURE = 1;
-    private static final int REQUEST_CONNECT_DEVICE_INSECURE = 2;
-    private static final int REQUEST_ENABLE_BT = 121;
-    private static final int REQUEST_ENABLE_DISCOVERY = 122;
+    private final int REQUEST_CONNECT_DEVICE_INSECURE = 2;
+    private final int REQUEST_ENABLE_DISCOVERY = 122;
+    private final int RC_MULTIPLE = 45;
 
-    private static final String DENIED = "DENIED";
-    private static final String ACCEPTED = "ACCEPTED";
-
-    private static final int DISCOVER_TIME = 300;
-    private static final int REQUEST_WRITE_EXTERNAL_STORAGE = 151;
+    private static final int DISCOVER_TIME = 5*60; //5 minutes
 
     private BluetoothAdapter mBluetoothAdapter = null;
     private BluetoothFriendService btService;
 
-    private Switch main_switch;
-    private TextView status;
-    private TextView status_message;
     private String mOldDeviceName;
     private String mNewDeviceName;
     //Name of the connected device
     private String mConnectedDeviceName = null;
-
-    private Button mBtnConnect;
-    private Button mBtnDisconnect;
-    private Button mBtnSendRequest;
-    private Button mBtnAcceptRequest;
-    private Button mBtnDenyRequest;
 
     private FirebaseDatabase mFirebaseDatabase; //main access point
     private DatabaseReference refRequest;
     private String secret;
     private String theirSecret;
 
+    private TextView status_received;
+    private Drawable defaultPic;
     private ImageView mPic;
     private TextView mName1;
     private TextView mName2;
-    private Drawable defaultPic;
+
+    private boolean flag_requester = false;
+    private boolean flag_bt = false;
+    private Menu bt_menu;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,52 +79,29 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
         setContentView(R.layout.activity_bluetooth_friend);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        if(getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         // 1. getAdapter
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mBluetoothAdapter == null) {
             // Device does not support Bluetooth
-            Toast.makeText(getApplicationContext(), "No Bluetooth device detected",Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "No Bluetooth device detected", Toast.LENGTH_SHORT).show();
             finish();
         }
 
-        status = (TextView)findViewById(R.id.bt_status);
-        status_message = (TextView)findViewById(R.id.bt_status_message);
-/*
-        main_switch = (Switch)findViewById(R.id.bt_main_switch);
-        main_switch.setChecked(mBluetoothAdapter.isEnabled());
-        main_switch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener()
-        {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked) {
-                    status.setText("Starting bluetooth...");
-                    if (!mBluetoothAdapter.isEnabled()) {
-                        //turnOnBluetooth();
-                        turnOnDiscoverable();
-                    } else
-                        setupThis();
-                } else {
-                    status.setText("Bluetooth off. Bluetooth must be enabled to continue.");
-                    if (mBluetoothAdapter.isEnabled()) mBluetoothAdapter.disable();
-                }
-            }
-        });
-*/
-        mBtnSendRequest=(Button)findViewById(R.id.request_send);
-        mBtnAcceptRequest=(Button)findViewById(R.id.request_accept);
-        mBtnDenyRequest=(Button)findViewById(R.id.request_deny);
-        mBtnConnect=(Button)findViewById(R.id.bt_connect);
-        mBtnDisconnect=(Button)findViewById(R.id.bt_disconnect);
-
-        mBtnSendRequest.setOnClickListener(this);
-        mBtnAcceptRequest.setOnClickListener(this);
-        mBtnDenyRequest.setOnClickListener(this);
-        mBtnConnect.setOnClickListener(this);
-        mBtnDisconnect.setOnClickListener(this);
-
         mFirebaseDatabase = FirebaseDatabase.getInstance();
         refRequest = mFirebaseDatabase.getReference().child("requests");
+
+        //UI components
+        status_received = (TextView)findViewById(R.id.bt_status_received);
+        Button mBtnFindPeople = (Button) findViewById(R.id.bt_request_send);
+        Button mBtnAcceptRequest = (Button) findViewById(R.id.request_accept);
+        Button mBtnDenyRequest = (Button) findViewById(R.id.request_deny);
+        mBtnFindPeople.setOnClickListener(this);
+        mBtnAcceptRequest.setOnClickListener(this);
+        mBtnDenyRequest.setOnClickListener(this);
 
         mPic = (ImageView)findViewById(R.id.request_pic);
         mName1 = (TextView)findViewById(R.id.request_name1);
@@ -149,38 +114,21 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
     @Override
     public void onStart() {
         super.onStart();
+        Log.d(TAG,"onStart");
         // If BT is not on, request that it be enabled.
         // setupThis() will then be called during onActivityResult
         if (!mBluetoothAdapter.isEnabled()) {
-            //Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            //startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
             turnOnDiscoverable();
-            // Otherwise, setup the chat session
         } else if (btService == null) {
+            flag_bt = true;
             setupThis();
         }
-    }
-
-    public void setNewDeviceName() {
-        mOldDeviceName = mBluetoothAdapter.getName();
-        String mydeviceaddress = mBluetoothAdapter.getAddress();
-        String username = "MA: ";
-        SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
-        if (data != null && (data.contains("username")))
-            username += data.getString("username", mOldDeviceName);
-        else username += mOldDeviceName;
-
-        String temp = username + " : " + mydeviceaddress;
-        status.setText(temp);
-        this.mNewDeviceName = username;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-
-        if (mNewDeviceName == null) setNewDeviceName();
-        mBluetoothAdapter.setName(mNewDeviceName);
+        Log.d(TAG,"onResume");
 
         // Performing this check in onResume() covers the case in which BT was
         // not enabled during onStart(), so we were paused to enable it...
@@ -197,25 +145,38 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
     @Override
     protected void onPause() {
         super.onPause();
+        Log.d(TAG,"onPause");
 
         if (mBluetoothAdapter.isDiscovering()) mBluetoothAdapter.cancelDiscovery();
         if (mOldDeviceName != null) mBluetoothAdapter.setName(mOldDeviceName);
-        // TODO change name if you turn off bluetooth
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        this.finish();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // unregisterReceiver(mBroadcastReceiver);
+        Log.d(TAG,"onDestroy");
         if (btService != null) {
             btService.stop();
         }
+        setOldDeviceName();
+        if (mBluetoothAdapter!=null){
+            mBluetoothAdapter.disable();
+        }
+        File image = new File(getCacheDir(), "someone" + ".jpg");
+        if (image.exists()) image.delete();
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
+        bt_menu = menu;
         return true;
     }
 
@@ -225,32 +186,18 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         switch (item.getItemId()) {
-            case R.id.sign_out_menu:
-                Toast.makeText(this, "Well you clicked.",Toast.LENGTH_SHORT).show();
+            case R.id.bt_on_off_item:
+                Log.d(TAG, "clicked on bt icon");
+                if (flag_bt){
+                    flag_bt = false;
+                    item.setIcon(R.drawable.ic_action_bluetooth);
+                    findViewById(R.id.bt_received_request).setVisibility(View.GONE);
+                    findViewById(R.id.bt_send_request).setVisibility(View.GONE);
+                    status_received.setText("We need bluetooth enabled to find other users.");
+                } else {
+                    turnOnDiscoverable();
+                }
                 return true;
-            /*
-            case R.id.secure_connect_scan: {
-                // Launch the DeviceListActivity to see devices and do scan
-                Intent serverIntent = new Intent(this, DeviceListActivity.class);
-                startActivityForResult(serverIntent, REQUEST_CONNECT_DEVICE_SECURE);
-                return true;
-            }
-            case R.id.insecure_connect_scan: {
-                // Launch the DeviceListActivity to see devices and do scan
-                Intent serverIntent = new Intent(this, DeviceListActivity.class);
-                startActivityForResult(serverIntent, REQUEST_CONNECT_DEVICE_INSECURE);
-                return true;
-            }
-            case R.id.discoverable: {
-                // Ensure this device is discoverable by others
-                ensureDiscoverable();
-                return true;
-            }
-            case R.id.disconnect: {
-                disconnectDevice();
-                return true;
-            }
-            */
         }
         return false;
     }
@@ -275,13 +222,9 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
         bar.setSubtitle(subTitle);
     }
 
-    private void turnOnBluetooth() {
-        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-        startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-    }
-
     /**
      * Makes this device discoverable for 300 seconds (5 minutes).
+     * Asking for discoverable implies "bluetooth enabled" permission
      */
     private void turnOnDiscoverable() {
         if (mBluetoothAdapter.getScanMode() != BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
@@ -291,46 +234,75 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
         }
     }
 
-    private void setupThis() {
+    private void askPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {  // Only ask for these permissions on runtime when running Android 6.0 or higher
-            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(BluetoothFriendActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_WRITE_EXTERNAL_STORAGE);
+            if ((checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+                || (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                || (checkSelfPermission(Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED))
+            {
+                ActivityCompat.requestPermissions(BluetoothFriendActivity.this,
+                        new String[]{
+                                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.BLUETOOTH_ADMIN
+                        },
+                        RC_MULTIPLE);
             }
         }
-        mOldDeviceName = mBluetoothAdapter.getName();
-        //String mydeviceaddress = mBluetoothAdapter.getAddress(); // >API23 numbers are assigned random or default 00:20:00...
-        //String mydeviceaddress = android.provider.Settings.Secure.getString(getApplicationContext().getContentResolver(), "bluetooth_address");
-        String username = "MA: ";
-        SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
-        if (data != null && (data.contains("username")))
-            username += data.getString("username", mOldDeviceName);
-        else username += FirebaseAuth.getInstance().getCurrentUser().getDisplayName();
+    }
 
-        mBluetoothAdapter.setName(username);
-        String temp = "ME: username + ";
-        status.setText(temp);
+    /**
+     * Changes bluetooth name to "MA: username"
+     * Starts Bluetooth service
+     */
+    private void setupThis() {
+
+        if (mNewDeviceName == null) { setNewDeviceName(); }
 
         // Initialize the BluetoothChatService to perform bluetooth connections
         btService = new BluetoothFriendService(this, mHandler);
     }
 
+    public void setNewDeviceName() {
+        mOldDeviceName = mBluetoothAdapter.getName();
+        Log.d(TAG, "mOldDeviceName = "+mOldDeviceName);
+        SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
+        if (data != null) {
+            mNewDeviceName = data.getString("username", mOldDeviceName);
+        } else {
+            mNewDeviceName = FirebaseAuth.getInstance().getCurrentUser().getDisplayName();
+        }
+        Log.d(TAG,"mNewDeviceName = "+mNewDeviceName);
+        mBluetoothAdapter.setName(mNewDeviceName);
+    }
+
+    private void setOldDeviceName() {
+        if (mOldDeviceName!=null && mBluetoothAdapter!=null) {
+            mBluetoothAdapter.setName(mOldDeviceName);
+        }
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
-            case REQUEST_WRITE_EXTERNAL_STORAGE: {
+            case RC_MULTIPLE: {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0) {
-                    boolean a1 = grantResults[0] == PackageManager.PERMISSION_GRANTED;
-                    if (a1) {
+                    boolean all = true;
+                    for (int i:grantResults) {
+                        all = (all && (i == PackageManager.PERMISSION_GRANTED));
+                    }
+                    if (all) {
                         // permission was granted, yay!
                         Toast.makeText(getApplicationContext(), "Permission GRANTED", Toast.LENGTH_SHORT).show();
+                        setupThis();
                     }
-                    setupThis();
                 } else {
 
                     // permission denied, boo! Disable the
                     // functionality that depends on this permission.
                     Toast.makeText(getApplicationContext(),"Permission denied", Toast.LENGTH_SHORT).show();
+                    finish();
                 }
                 return;
             }
@@ -342,17 +314,13 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
     @Override
     public void onClick(View v) {
         switch(v.getId()) {
-            case R.id.bt_connect: // Without pairing for now
-                //Intent serverIntent = new Intent(this, BluetoothDeviceListActivity.class);
-                //startActivityForResult(serverIntent, REQUEST_CONNECT_DEVICE_SECURE);
+            case R.id.bt_request_send: // Without pairing for now
+                // in case we are connected
+                disconnectDevice();
+                flag_requester = true;
+                // start searching for other devices
                 Intent serverIntent = new Intent(this, BluetoothDeviceListActivity.class);
                 startActivityForResult(serverIntent, REQUEST_CONNECT_DEVICE_INSECURE);
-                break;
-            case R.id.bt_disconnect:
-                disconnectDevice();
-                break;
-            case R.id.request_send:
-                sendRequest();
                 break;
             case R.id.request_accept:
                 acceptRequest();
@@ -363,19 +331,22 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
         }
     }
 
+    private void clearRequestUI(){
+        // Because simple does not work.
+        mPic.setImageDrawable(defaultPic);
+        mName1.setText(getString(R.string.username));
+        mName2.setText(getString(R.string.full_name_filler));
+        findViewById(R.id.bt_received_request).setVisibility(View.GONE);
+    }
+
     private void disconnectDevice() {
+        Log.d(TAG,"disconnectDevice");
         if (btService.getState() != BluetoothFriendService.STATE_NONE)
             btService.stop();
         secret = null;
         theirSecret = null;
 
-        // Because simple does not work.
-        mPic.setImageDrawable(defaultPic);
-        mName1.setText(getString(R.string.username));
-        mName2.setText(getString(R.string.full_name_filler));
-
-        mBtnAcceptRequest.setVisibility(View.INVISIBLE);
-        mBtnDenyRequest.setVisibility(View.INVISIBLE);
+        clearRequestUI();
 
         if (btService.getState() == BluetoothFriendService.STATE_NONE)
             btService.start();
@@ -390,6 +361,7 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
      * their_secret = uuid from the user that sent the request
      */
     private void sendRequest() {
+        Log.d(TAG,"sendRequest");
         if (btService.getState() != BluetoothFriendService.STATE_CONNECTED) {
             Toast.makeText(this, R.string.not_connected, Toast.LENGTH_SHORT).show();
             return;
@@ -397,15 +369,15 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
 
         DatabaseReference ref = refRequest.push(); // generates the unique push key
         secret = ref.getKey(); // gets that key
-        ref.setValue(FirebaseAuth.getInstance().getCurrentUser().getUid()) //pushKey > myUid
+        ref.setValue(FirebaseAuth.getInstance().getCurrentUser().getUid()) //pushKey -> myUid
                 .addOnSuccessListener(new OnSuccessListener<Void>()
         {
             @Override
             public void onSuccess(Void aVoid) {
                 byte[] message = secret.getBytes();
                 btService.write(message);
-                status_message.setText("sent>> " + secret);
-                status.setText("Sent request, waiting...");
+                Log.d(TAG,"sent>> " + secret);
+                status_received.setText("Request sent, waiting...");
             }
         });
     }
@@ -419,7 +391,31 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
      */
     private void receivedRequest(String key) {
         secret = key;
-        status.setText("received>> " + key);
+        Log.d(TAG,"received>> " + key);
+        status_received.setText("Request received. Loading...");
+
+        final boolean areFriends[] = {false};
+        FirebaseDatabase.getInstance().getReference().child(Constants.FRIENDS).child(FirebaseAuth.getInstance().getCurrentUser().getUid()).child(theirSecret)
+                .addListenerForSingleValueEvent(new ValueEventListener()
+        {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()){
+                    Log.d(TAG, "Already friends.");
+                    areFriends[0] = true;
+                    status_received.setText("Already friends");
+                    if (btService.getState() == BluetoothFriendService.STATE_CONNECTED) {
+                        btService.write(Constants.ACCEPTED.getBytes());
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                Log.e(TAG,databaseError.getMessage());
+            }
+        });
+        if (areFriends[0]) return;
 
         // Read users UID from key
         refRequest.child(key).addListenerForSingleValueEvent(new ValueEventListener()
@@ -436,7 +432,6 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
                     public void onDataChange(DataSnapshot dataSnapshot) {
                         if (dataSnapshot.exists()) {
 
-                            status_message.setText("Loading request...");
                             final ProfileBean received = dataSnapshot.getValue(ProfileBean.class);
 
                             final File image = new File(getCacheDir(), "someone" + ".jpg");
@@ -445,32 +440,34 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
                             {
                                 @Override
                                 public void onComplete(@NonNull Task<FileDownloadTask.TaskSnapshot> task) {
-                                    status_message.setText("Loading request... Done.");
+                                    String temp = status_received.getText().toString();
+                                    status_received.setText(temp.concat(" Done!"));
+
                                     mName1.setText(received.getUsername());
                                     mName2.setText("(" + received.getName() + " " + received.getLastName() + ")");
-                                    mBtnAcceptRequest.setVisibility(View.VISIBLE);
-                                    mBtnDenyRequest.setVisibility(View.VISIBLE);
-
                                     if (task.isSuccessful()) {
                                         mPic.setImageURI(Uri.fromFile(image));
-                                        status.setText("Successfullly downloaded image");
+                                        Log.d(TAG,"Successfullly downloaded image");
                                     } else {
-                                        status.setText("Failed to download image");
+                                        Log.e(TAG,"Failed to download image");
                                     }
+                                    findViewById(R.id.bt_received_request).setVisibility(View.VISIBLE);
                                 }
                             });
                         }
                     }
                     @Override
                     public void onCancelled(DatabaseError databaseError) {
-                        status.setText(databaseError.getCode());
+                        Log.e(TAG, databaseError.getMessage());
                     }
                 });
             }
 
             @Override
             public void onCancelled(DatabaseError databaseError) {
-                status.setText(databaseError.getCode());
+                Log.e(TAG, databaseError.getMessage());
+                status_received.setText("Invalid request. Dismissed.");
+                disconnectDevice();
             }
         });
     }
@@ -490,18 +487,18 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
             return;
         }
 
-        if (theirSecret == null) {
-            status_message.setText("No profile links found.");
-            return; // something is wrong
+        if (theirSecret == null) { // something is wrong
+            Log.e(TAG,"No profile links found.");
+            return;
         }
 
         refRequest.child(secret).setValue(FirebaseAuth.getInstance().getCurrentUser().getUid()).addOnSuccessListener(new OnSuccessListener<Void>()
         {
             @Override
             public void onSuccess(Void aVoid) {
-                String message = "accepted";
-                btService.write(message.getBytes());
-                status_message.setText("Request accepted");
+                btService.write(Constants.ACCEPTED.getBytes());
+                Log.d(TAG,"Request accepted");
+                status_received.setText("Request accepted.");
             }
         });
 
@@ -515,6 +512,8 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
                     @Override
                     public void onSuccess(Void aVoid) {
                         Toast.makeText(getApplicationContext(), "Friend added!", Toast.LENGTH_SHORT).show();
+                        Log.d(TAG,"Friend added!");
+                        clearRequestUI();
                     }
                 });
     }
@@ -545,16 +544,19 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
                             public void onSuccess(Void aVoid) {
                                 Toast.makeText(getApplicationContext(), "Friend added!", Toast.LENGTH_SHORT).show();
 
-                                status.setText("Response: accepted " + theirSecret);
+                                status_received.setText("Response: accepted");
+                                Log.d(TAG,"Response: accepted " + theirSecret);
                                 refRequest.child(secret).setValue(null);
                                 secret = null;
                                 theirSecret = null;
+                                disconnectDevice();
                             }
                         });
             }
             @Override
             public void onCancelled(DatabaseError databaseError) {
-                status.setText(databaseError.getCode());
+                Log.e(TAG,databaseError.getMessage());
+                disconnectDevice();
             }
         });
     }
@@ -568,12 +570,13 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
      * their_secret = uuid from the user that sent the request
      */
     private void denyRequest() {
-        String message = "denied";
-        btService.write(message.getBytes());
-        status.setText("denied");
+        btService.write(Constants.DENIED.getBytes());
+        Log.d(TAG,"denied");
+        status_received.setText("Request denied.");
         refRequest.child(secret).setValue(null);
         secret = null;
         theirSecret = null;
+        clearRequestUI();
     }
 
     /**
@@ -583,9 +586,10 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
      * their_secret = uuid from the user that sent the request
      */
     private void deniedRequest() {
-        status.setText("Response: denied");
+        status_received.setText("Response: denied");
         secret = null;
         theirSecret = null;
+        disconnectDevice();
     }
 
     /**
@@ -599,7 +603,11 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
                 case Constants.MESSAGE_STATE_CHANGE:
                     switch (msg.arg1) {
                         case BluetoothFriendService.STATE_CONNECTED:
-                            setStatus(getString(R.string.title_connected_to) + mConnectedDeviceName);
+                            setStatus(getString(R.string.title_connected_to) +" "+ mConnectedDeviceName);
+                            if (flag_requester) {
+                                sendRequest();
+                                flag_requester = false;
+                            }
                             break;
                         case BluetoothFriendService.STATE_CONNECTING:
                             setStatus(R.string.title_connecting);
@@ -614,25 +622,30 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
                     byte[] writeBuf = (byte[]) msg.obj;
                     // construct a string from the buffer
                     String writeMessage = new String(writeBuf);
-                    status_message.setText(writeMessage);
+                    Log.d(TAG,writeMessage);
                     break;
                 case Constants.MESSAGE_READ: //we received a message
                     byte[] readBuf = (byte[]) msg.obj;
                     // construct a string from the valid bytes in the buffer
                     String readMessage = new String(readBuf, 0, msg.arg1);
-                    if (readMessage.equalsIgnoreCase("accepted")) acceptedRequest();
-                    else if (readMessage.equalsIgnoreCase("denied")) deniedRequest();
-                    else receivedRequest(readMessage);
-                    status_message.setText(mConnectedDeviceName + ":  " + readMessage);
+
+                    if (readMessage.equals(Constants.ACCEPTED)) { acceptedRequest(); }
+                    else if (readMessage.equals(Constants.DENIED)) { deniedRequest(); }
+                    else if (readMessage.equals(Constants.AREFRIENDS)) {
+                        status_received.setText("Already friends.");
+                        disconnectDevice();
+                    }
+                    else { receivedRequest(readMessage); }
+                    Log.d(TAG, mConnectedDeviceName + ":  " + readMessage);
                     break;
-                case Constants.MESSAGE_DEVICE_NAME:
+                case Constants.MESSAGE_DEVICE_NAME: // when devices are connected
                     // save the connected device's name
                     mConnectedDeviceName = msg.getData().getString(Constants.DEVICE_NAME);
-                    status_message.setText("Connected to " + mConnectedDeviceName);
+                    Log.d(TAG,"Connected to " + mConnectedDeviceName);
                     break;
-                case Constants.MESSAGE_TOAST:
+                case Constants.MESSAGE_TOAST: // reports connection issues
                     Toast.makeText(getApplicationContext(), msg.getData().getString(Constants.TOAST), Toast.LENGTH_SHORT).show();
-                    status_message.setText(msg.getData().getString(Constants.TOAST));
+                    Log.d(TAG,msg.getData().getString(Constants.TOAST));
                     break;
             }
         }
@@ -641,36 +654,29 @@ public class BluetoothFriendActivity extends AppCompatActivity implements View.O
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         switch (requestCode) {
-            case REQUEST_CONNECT_DEVICE_SECURE:
-                // When DeviceListActivity returns with a device to connect
-                if (resultCode == RESULT_OK) {
-                    connectDevice(data, true);
+            case REQUEST_ENABLE_DISCOVERY:
+                // When the request to enable Bluetooth discovery returns
+                if (resultCode==RESULT_CANCELED) {
+                    Log.d(TAG,"Enable discovery result CANCEL.");
+                    //finish();
+                    flag_bt = false;
+                    bt_menu.getItem(0).setIcon(R.drawable.ic_action_bluetooth);
+                    findViewById(R.id.bt_received_request).setVisibility(View.GONE);
+                    findViewById(R.id.bt_send_request).setVisibility(View.GONE);
+                    status_received.setText("We need bluetooth enabled to find other users.");
+                } else {
+                    Log.d(TAG, "Enable discovery result OK.");
+                    flag_bt = true;
+                    bt_menu.getItem(0).setIcon(R.drawable.ic_action_bluetooth_searching);
+                    findViewById(R.id.bt_send_request).setVisibility(View.VISIBLE);
+                    status_received.setText(R.string.bt_requests_message);
+                    setupThis();
                 }
                 break;
             case REQUEST_CONNECT_DEVICE_INSECURE:
                 // When DeviceListActivity returns with a device to connect
                 if (resultCode == RESULT_OK) {
                     connectDevice(data, false);
-                }
-                break;
-            case REQUEST_ENABLE_BT:
-                // When the request to enable Bluetooth returns
-                if (resultCode == RESULT_OK) {
-                    // Bluetooth is now enabled, so set up a chat session
-                    status.setText("Bluetooth enabled. Result OK");
-                    setupThis();
-                } else {
-                    // User did not enable Bluetooth or an error occurred
-                    status.setText("Bluetooth must be enabled to continue. CANCEL");
-                }
-                break;
-            case REQUEST_ENABLE_DISCOVERY:
-                // When the request to enable Bluetooth discovery returns
-                if (resultCode!=RESULT_CANCELED) {
-                    status.setText("Enable discovery result OK.");
-                    setupThis();
-                } else {
-                    status.setText("Enable discovery result CANCEL.");
                 }
                 break;
         }

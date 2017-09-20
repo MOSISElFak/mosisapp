@@ -52,11 +52,11 @@ public class BluetoothFriendService
 
     // Member fields
     private final BluetoothAdapter mAdapter;
-    //Each Handler instance is associated with a single thread and that thread's message queue.
+    // Each Handler instance is associated with a single thread and that thread's message queue.
     // When you create a new Handler, it is bound to the thread / message queue of the thread that is creating it -
     // - from that point on, it will deliver messages and runnables to that message queue and execute them as they come out of the message queue.
     private final Handler mHandler;
-    private AcceptThread mSecureAcceptThread;
+    //private AcceptThread mSecureAcceptThread;
     private AcceptThread mInsecureAcceptThread;
     private ConnectThread mConnectThread;
     private ConnectedThread mConnectedThread;
@@ -68,17 +68,6 @@ public class BluetoothFriendService
     public static final int STATE_LISTEN=1;     // now listening for incoming connections
     public static final int STATE_CONNECTING=2; // now initiating an outgoing connection
     public static final int STATE_CONNECTED=3;  // now connected to a remote device
-
-    // Message types sent from the BluetoothChatService Handler
-    public static final int MESSAGE_STATE_CHANGE = 1;
-    public static final int MESSAGE_READ = 2;
-    public static final int MESSAGE_WRITE = 3;
-    public static final int MESSAGE_DEVICE_NAME = 4;
-    public static final int MESSAGE_TOAST = 5;
-
-    // Key names received from the BluetoothChatService Handler
-    public static final String DEVICE_NAME = "device_name";
-    public static final String TOAST = "toast";
 
     /**
      * Constructor. Prepares a new BluetoothChat session.
@@ -132,10 +121,10 @@ public class BluetoothFriendService
         }
 
         // Start the thread to listen on a BluetoothServerSocket
-        if (mSecureAcceptThread == null) {
-            mSecureAcceptThread = new AcceptThread(true);
-            mSecureAcceptThread.start();
-        }
+        //if (mSecureAcceptThread == null) {
+        //    mSecureAcceptThread = new AcceptThread(true);
+        //    mSecureAcceptThread.start();
+        //}
         if (mInsecureAcceptThread == null) {
             mInsecureAcceptThread = new AcceptThread(false);
             mInsecureAcceptThread.start();
@@ -197,10 +186,10 @@ public class BluetoothFriendService
         }
 
         // Cancel the accept thread because we only want to connect to one device
-        if (mSecureAcceptThread != null) {
-            mSecureAcceptThread.cancel();
-            mSecureAcceptThread = null;
-        }
+        // if (mSecureAcceptThread != null) {
+        //    mSecureAcceptThread.cancel();
+        //    mSecureAcceptThread = null;
+        //}
         if (mInsecureAcceptThread != null) {
             mInsecureAcceptThread.cancel();
             mInsecureAcceptThread = null;
@@ -236,10 +225,10 @@ public class BluetoothFriendService
             mConnectedThread = null;
         }
 
-        if (mSecureAcceptThread != null) {
-            mSecureAcceptThread.cancel();
-            mSecureAcceptThread = null;
-        }
+        //if (mSecureAcceptThread != null) {
+        //    mSecureAcceptThread.cancel();
+        //    mSecureAcceptThread = null;
+        //}
 
         if (mInsecureAcceptThread != null) {
             mInsecureAcceptThread.cancel();

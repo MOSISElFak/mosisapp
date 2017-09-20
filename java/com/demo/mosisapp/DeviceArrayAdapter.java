@@ -1,27 +1,24 @@
 package com.demo.mosisapp;
 
+import android.support.annotation.LayoutRes;
+import android.support.annotation.NonNull;
 import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
-import android.graphics.drawable.Drawable;
-import android.support.annotation.IdRes;
-import android.support.annotation.LayoutRes;
-import android.support.annotation.NonNull;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import java.util.List;
-
-public class DeviceArrayAdapter extends ArrayAdapter<BluetoothDevice>
+class DeviceArrayAdapter extends ArrayAdapter<BluetoothDevice>
 {
-    Drawable secure;
-    Drawable unsecure;
-    int isecure, iunsecure;
+    //Drawable secure;
+    //Drawable unsecure;
+    private int isecure, iunsecure;
 
-    public DeviceArrayAdapter(@NonNull Context context, @LayoutRes int resource) {//}, @NonNull List<BluetoothDevice> objects) {
+    DeviceArrayAdapter(@NonNull Context context, @LayoutRes int resource) {//}, @NonNull List<BluetoothDevice> objects) {
         super(context, resource);//, objects);
 
         //unsecure = context.getResources().getDrawable(R.drawable.ic_action_not_secure);
@@ -42,13 +39,14 @@ public class DeviceArrayAdapter extends ArrayAdapter<BluetoothDevice>
 
         BluetoothDevice device = getItem(position);
 
-        boolean isPaired = (device.getBondState() != BluetoothDevice.BOND_BONDED);
-        mImage.setImageResource(isPaired?isecure:iunsecure);
-        //Glide.with(photoImageView.getContext())
-        //        .load(message.getPhotoUrl())
-        //        .into(photoImageView);
-        mDevName.setText(device.getName());
-        mDevAddress.setText(device.getAddress());
+        if (device != null) {
+            boolean isPaired = (device.getBondState() != BluetoothDevice.BOND_BONDED);
+            mImage.setImageResource(isPaired ? isecure : iunsecure);
+            mDevName.setText(device.getName());
+            mDevAddress.setText(device.getAddress());
+        } else {
+            Log.e("DeviceArrayAdapter", "Device is null!");
+        }
 
         return convertView;
     }
