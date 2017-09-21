@@ -1,16 +1,12 @@
 package com.demo.mosisapp;
 
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
 import android.widget.ListView;
-import android.widget.ProgressBar;
-
-import com.google.firebase.database.ChildEventListener;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -22,7 +18,6 @@ public class ScoreboardActivity extends AppCompatActivity
 {
     private String TAG = "ScoreboardActivity";
     private ScoreboardListAdapter mListAdapter;
-    private ListView mlistView;
 
     //private ProgressBar mProgressBar;
 
@@ -37,14 +32,9 @@ public class ScoreboardActivity extends AppCompatActivity
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        try {
+        if(getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
-        catch (NullPointerException ex){
-            Log.e(TAG, "setDisplayHomeAsUpEnabled failed");
-        }
-        //mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
-        //mProgressBar.setVisibility(ProgressBar.VISIBLE);
 
         final SwipeRefreshLayout swipey = (SwipeRefreshLayout) findViewById(R.id.swiperefresh);
         swipey.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener()
@@ -56,13 +46,28 @@ public class ScoreboardActivity extends AppCompatActivity
             }
         });
 
-        mlistView = (ListView)findViewById(R.id.scoreboard_list);
+        ListView mlistView = (ListView) findViewById(R.id.scoreboard_list);
         mListAdapter = new ScoreboardListAdapter(this,R.layout.item_scorelist);
         mlistView.setAdapter(mListAdapter);
 
         refUsers = FirebaseDatabase.getInstance().getReference().child(Constants.USERS);
         DatabaseReference refPoints = FirebaseDatabase.getInstance().getReference().child("points/app");
         scoreQuery = refPoints.orderByValue().limitToLast(10);
+
+        String me = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        refPoints.child(me).addListenerForSingleValueEvent(new ValueEventListener()
+        {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                int myscore = dataSnapshot.getValue(Integer.class);
+                getSupportActionBar().setSubtitle("My Score: "+myscore);
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                Log.e(TAG, "Well " + databaseError.getDetails());
+            }
+        });
 
         mValueEventListener = new ValueEventListener() //listens for query, gets <userid>:<score>
         {
@@ -116,5 +121,11 @@ public class ScoreboardActivity extends AppCompatActivity
     protected void onPause() {
         mListAdapter.clear();
         super.onPause();
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        finish();
     }
 }

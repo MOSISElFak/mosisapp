@@ -23,14 +23,17 @@
     <string name="action_forgot_continue">Continue</string>
 
     <string name="message_forgot">Enter registered email to reset your password.</string>
-
+    <string name="message_email_sent">Email has been sent</string>
     <string name="error_invalid_email">This email address is invalid</string>
     <string name="error_invalid_password">This password is too short</string>
-    <string name="error_incorrect_password">This password is incorrect</string>
-    <string name="error_field_required">This field is required</string>
-    <string name="permission_rationale">"Contacts permissions are needed for providing email completions."</string>
-    <string name="error_username_short">This username is too short</string>
     <string name="error_invalid_username">Username is invalid</string>
+    <string name="error_invalid_phone">This phone number is invalid</string>
+    <string name="error_invalid_picture">Picture is not set</string>
+    <string name="error_field_required">This field is required</string>
+    <string name="error_incorrect_password">This password is incorrect</string>
+    <string name="permission_rationale">"Contacts permissions are needed for providing email completions."</string>
+    <string name="error_short">too short</string>
+
     <string name="logo_description">fsociety</string>
 
     <!-- Profile -->
@@ -86,5 +89,6 @@
 
     <!-- MainService -->
     <string name="service_main_description">Enables notifications when users or places are near</string>
+
 
 </resources>

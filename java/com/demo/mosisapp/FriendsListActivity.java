@@ -6,14 +6,12 @@ import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.support.v7.view.menu.MenuAdapter;
 import android.support.v7.widget.Toolbar;
 import android.view.ContextMenu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -27,24 +25,19 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
-import com.google.firebase.storage.FirebaseStorage;
-
 
 public class FriendsListActivity extends AppCompatActivity implements AdapterView.OnItemClickListener
 {
     //FIREBASE AUTHENTICATION
-    private FirebaseAuth mAuth;
     private FirebaseUser user;
     //FIREBASE REALTIME DATABASE
     private FirebaseDatabase mFirebaseDatabase;
-    private DatabaseReference refLocation;
     private DatabaseReference refFriends;
     private DatabaseReference refUsers;
     private ChildEventListener mChildEventListener;
 
     private FriendsListAdapter mAdapter;
 
-    private ListView mList;
     private Toolbar toolbar;
 
     AlertDialog ad;
@@ -58,21 +51,12 @@ public class FriendsListActivity extends AppCompatActivity implements AdapterVie
 
         user = FirebaseAuth.getInstance().getCurrentUser();
         mFirebaseDatabase = FirebaseDatabase.getInstance();
-        //refLocation = mFirebaseDatabase.getReference().child("location").child(user.getUid());
-        //refFriends = mFirebaseDatabase.getReference().child("friends").child(user.getUid());
-        //refUsers = mFirebaseDatabase.getReference().child("users");
 
-        // add a local list for uids?
-        //List<ProfileBean> profiles = new ArrayList<>();
-        //mAdapter = new FriendsListAdapter(this, R.layout.item_profilelist, profiles);
         mAdapter = new FriendsListAdapter(this, R.layout.item_profilelist);
-        mList = (ListView)findViewById(R.id.friends_list);
+        ListView mList = (ListView) findViewById(R.id.friends_list);
         mList.setAdapter(mAdapter);
         mList.setOnItemClickListener(this);
         mList.setOnCreateContextMenuListener(this);
-
-        //FirebaseAuth.getInstance().signOut();
-
     }
 
     @Override
@@ -89,6 +73,12 @@ public class FriendsListActivity extends AppCompatActivity implements AdapterVie
         mAdapter.clear();
     }
 
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        finish();
+    }
+
     private void detachDatabaseReadListener() {
         if (mChildEventListener!=null) {
             refFriends.removeEventListener(mChildEventListener);
@@ -98,7 +88,6 @@ public class FriendsListActivity extends AppCompatActivity implements AdapterVie
 
     private void attachDatabaseReadListener() {
         toolbar.setSubtitle("Populating...");
-        //Map<String, Object> td = (HashMap<String,Object>) dataSnapshot.getValue();
 
         refFriends = mFirebaseDatabase.getReference().child("friends").child(user.getUid());
         refUsers = mFirebaseDatabase.getReference().child("users");
@@ -114,6 +103,8 @@ public class FriendsListActivity extends AppCompatActivity implements AdapterVie
                     {
                         @Override
                         public void onDataChange(DataSnapshot dataSnapshot) {
+                            if (!dataSnapshot.exists()) return;
+                            toolbar.setSubtitle("");
                             ProfileBean beanie = dataSnapshot.getValue(ProfileBean.class);
                             beanie.setReserve(dataSnapshot.getKey());
                             mAdapter.add(beanie);
@@ -163,12 +154,6 @@ public class FriendsListActivity extends AppCompatActivity implements AdapterVie
         Intent i = new Intent(this, ProfileActivity.class);
         i.putExtra("friend", mAdapter.getItem(position));
         startActivity(i);
-        //mAdapter.getItem(position)....;
-
-        //Intent intent = new Intent(...);
-        //String EXTRA_MID = "myuid";
-        //intent.putExtra(EXTRA_MID, temp);
-        //startActivity(intent);
     }
 
     @Override

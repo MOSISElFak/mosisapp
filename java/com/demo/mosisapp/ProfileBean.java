@@ -1,8 +1,4 @@
 package com.demo.mosisapp;
-
-import android.os.Parcel;
-import android.os.Parcelable;
-
 import java.io.Serializable;
 
 // The class must have a default constructor that takes no arguments.

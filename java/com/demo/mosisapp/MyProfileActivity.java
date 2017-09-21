@@ -1,27 +1,21 @@
 package com.demo.mosisapp;
 
 import android.app.Activity;
-import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.graphics.Color;
-import android.graphics.Matrix;
-import android.hardware.Camera;
-import android.media.ExifInterface;
 import android.net.Uri;
-import android.os.Environment;
+import android.os.Bundle;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -44,17 +38,12 @@ import com.google.firebase.storage.UploadTask;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 
-// TODO remove sharedPreferences on app logout
-// TODO remove profilePic on app logout
-// Subscribing your listeners with an activity scope to automatically unregister them when the activity stops
-// TODO use glide
 public class MyProfileActivity extends AppCompatActivity implements View.OnClickListener
 {
-    private TextView screamer; String green="#00C853"; String red="#D32F2F";
+    private final String TAG = "MyProfileActivity";
     private ImageView pic;
     private EditText et_username;
     private EditText et_first;
@@ -69,9 +58,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
     private boolean buse=false, bfie=false, blae=false, bphe=false; // flags for edited fields
 
     private FirebaseUser me;
-    private FirebaseDatabase mFirebaseDatabase;
     private DatabaseReference refDB;
-    private FirebaseStorage mFirebaseStorage;
     private StorageReference refProfilePics;
     private StorageReference mStorageRefDown, mStorageRefUp;
 
@@ -80,7 +67,6 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_my_profile);
 
-        screamer = (TextView)findViewById(R.id.screamer);
         pic = (ImageView) findViewById(R.id.MyProfilePic);
         et_username = (EditText) findViewById(R.id.mine_usern);
         et_first = (EditText) findViewById(R.id.mine_name);
@@ -99,17 +85,11 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
 
         initSetUp();
         //MyDebugCheck();
-        ContextWrapper cw = new ContextWrapper(this);
-        String a1 = cw.getFilesDir().getPath();         //    /data/data/com.demo.mosisapp/files
-        String a2 = cw.getApplicationInfo().dataDir;    //    /data/data/com.demo.mosisapp
-        String a3 = Environment.getExternalStorageDirectory().getPath(); //    /storage/sdcard
-        String a4 = Environment.getExternalStorageDirectory().getAbsolutePath(); //    /storage/sdcard
 
         et_username.addTextChangedListener(new TextWatcher()
         {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
             }
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -148,7 +128,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 et_last.setError(null);
-                bla=(s.toString().trim().length() > 2);
+                bla=(s.toString().trim().length() > 1);
                 change.setEnabled(isUpdate && bus && bfi && bla && bph);
             }
             @Override
@@ -165,7 +145,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 et_phone.setError(null);
-                bph=(s.toString().trim().length() > 8);
+                bph=(s.length() > 7);
                 change.setEnabled(isUpdate && bus && bfi && bla && bph);
             }
             @Override
@@ -182,9 +162,24 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         et_last.setEnabled(false);
         et_phone.setEnabled(false);
 
-        if (me.getPhotoUrl() != null) loadImage();
+        et_username.setText(me.getDisplayName());
 
-        if (me.getDisplayName() != null) et_username.setText(me.getDisplayName());
+        File img = createImageFile("profile");
+        SharedPreferences sp = getSharedPreferences("basic", MODE_PRIVATE);
+        String savedname = sp.getString("username","boo");
+
+        if (savedname.equals(me.getDisplayName())) {    // Saved data matches logged in user
+            // Check if the file exists on device
+            if (img.exists()){
+                pic.setImageURI(Uri.fromFile(img));
+            }
+            else{
+                downloadImage(img);
+            }
+        } else {                                        // Saved data DOESN'T match logged in user
+            downloadImage(img);
+        }
+
         if (!loadPreferences())
         {
             refDB.addListenerForSingleValueEvent(new ValueEventListener()
@@ -200,24 +195,47 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
 
                 @Override
                 public void onCancelled(DatabaseError databaseError) {
-                    // check for permission?
+                    Log.e(TAG,databaseError.getMessage());
                 }
             });
         }
     }
 
+    private void downloadImage(File img){
+        Log.d(TAG, "in downloadImage");
+        // If the file doesn't exist, download it and set
+        final Uri address = Uri.fromFile(img);
+        StorageReference photoRef = refProfilePics.child("profile");
+        Log.d(TAG, "Downloading photo...");
+        mStorageRefDown = photoRef;
+        photoRef.getFile(img).addOnCompleteListener(new OnCompleteListener<FileDownloadTask.TaskSnapshot>()
+        {
+            @Override
+            public void onComplete(@NonNull Task<FileDownloadTask.TaskSnapshot> task) {
+                mStorageRefDown = null;
+                if (!task.isSuccessful()) {
+                    Log.e(TAG, "Image download failed!");
+                    pic.setImageResource(R.drawable.logo_fsociety_smal);
+                } else {
+                    Log.d(TAG, "Image downloaded");
+                    pic.setImageURI(address);
+                }
+            }
+        });
+    }
+
     private void setUp()
     {
+        Log.d(TAG, "in setUp");
         pic.setClickable(false);
         et_username.setEnabled(false);
         et_first.setEnabled(false);
         et_last.setEnabled(false);
         et_phone.setEnabled(false);
-        buse=false;bfie=false;blae=false;bphe=false;
-
-        if (me.getPhotoUrl() != null) loadImage();
-
-        if (me.getDisplayName() != null) et_username.setText(me.getDisplayName());
+        File img = createImageFile("profile");
+        if (img.exists()){ pic.setImageURI(Uri.fromFile(img)); }
+        else { downloadImage(img); }
+        et_username.setText(me.getDisplayName());
         loadPreferences();
     }
 
@@ -234,70 +252,17 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
     }
 
     private void savePreferences(ProfileBean me) {
-        // One of the major differences: getPreferences () returns a file only related to the activity it is opened from.
-        // While getDefaultSharedPreferences () returns the application's global preferences.
         SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
-        SharedPreferences.Editor editor = data.edit();
-        editor.putString("username",me.getUsername());
-        editor.putString("first",me.getName());
-        editor.putString("last",me.getLastName());
-        editor.putString("phone",me.getPhone());
-        editor.commit();
+        data.edit().putString("username",me.getUsername())
+                .putString("first",me.getName())
+                .putString("last",me.getLastName())
+                .putString("phone",me.getPhone())
+                .apply();
     }
 
     private void clearPreferences() {
         SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
-        SharedPreferences.Editor editor = data.edit();
-        editor.clear();
-        editor.commit();
-    }
-
-    private void MyDebugCheck() {
-        String path = getExternalFilesDir(Environment.DIRECTORY_PICTURES).toString();
-        File directory = new File(path);
-        File[] files = directory.listFiles();
-        System.out.println("Files, Size: "+ files.length);
-        for (int i = 0; i < files.length; i++)
-        {
-            System.out.println("Files, FileName:" + files[i].getName());
-            //files[i].delete();
-        }
-        System.out.println("MyDebugCheck completed");
-    }
-
-    /**
-     * Called when Auth.getPhotoUrl == true
-     * Checks if file is already downloaded and displays it. Downloads file if needed.
-     */
-    private void loadImage() {
-        // Check if the file exists
-        File img = createImageFile("profile");
-        if (img.exists()) {
-            pic.setImageURI(Uri.fromFile(img));
-        } else {
-            // If the file doesn't exist, download it and set
-            final Uri address = Uri.fromFile(img);
-            StorageReference photoRef = refProfilePics.child("profile");
-            screamer.setText("Downloading photo...");screamer.setTextColor(Color.parseColor(red));
-            mStorageRefDown = photoRef;
-            photoRef.getFile(img).addOnCompleteListener(new OnCompleteListener<FileDownloadTask.TaskSnapshot>()
-            {
-                @Override
-                public void onComplete(@NonNull Task<FileDownloadTask.TaskSnapshot> task) {
-                    mStorageRefDown = null;
-                    if (!task.isSuccessful()) {
-                        pic.setImageResource(R.drawable.logo_fsociety_smal);screamer.setText("Image downloaded!");screamer.setTextColor(Color.parseColor(green));
-                    } else {
-                        pic.setImageURI(address);screamer.setText("Image download failed!");screamer.setTextColor(Color.parseColor(red));
-                    }
-                }
-            });
-        }
-    }
-
-    public boolean isExternalStorageWritable() {
-        String state = Environment.getExternalStorageState(); //mounted
-        return (Environment.MEDIA_MOUNTED.equals(state));
+        data.edit().clear().apply();
     }
 
     @Override
@@ -309,6 +274,11 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                     setUp();
                     isUpdate = false;
                     change.setText(getString(R.string.mine_change_label));
+                    // Flag reset must be after accessing EditText fields
+                    buse=false;
+                    bfie=false;
+                    blae=false;
+                    bphe=false;
                 }
                 else {
                     isUpdate = true;
@@ -326,7 +296,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
     }
 
 
-    /*
+    /**
      * Takes a picture, and returns resulting image in Bundle.Extra."data"
      * Thumbnail size image!
      */
@@ -338,36 +308,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
     }
 
     private File createImageFile(String name) {
-        //String imageFileName = "profile";
-        File storageDir;
-
-        if (isExternalStorageWritable())
-            storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES); //  /storage/sdcard/Android/data/<package>/files/Pictures/profile.jpg
-        else
-            storageDir = getFilesDir();
-        File image = new File(storageDir, name + ".jpg"); //    /data/data/com.demo.mosisapp/files/profile.jpg
-        return image;
-
-    }
-
-    private File createImageFileUnique() throws IOException {
-        // Create an image file name
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir;
-        if (isExternalStorageWritable())
-            storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES); //  /storage/sdcard/Android/data/<package>/files/Pictures/profile.jpg
-        else
-            storageDir = getFilesDir();
-        File image = File.createTempFile(
-                imageFileName,  // prefix
-                ".jpg",         // suffix
-                storageDir      // directory
-        );
-
-        // Save a file: path for use with ACTION_VIEW intents
-        String mCurrentPhotoPath = image.getAbsolutePath();
-        return image;
+        return new File(getFilesDir(), name + ".jpg"); //    /data/data/com.demo.mosisapp/files/profile.jpg
     }
 
     // The Android Camera application encodes the photo in the return Intent delivered to onActivityResult()
@@ -378,6 +319,12 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
             Bundle extras = data.getExtras();
             imageBitmap = (Bitmap) extras.get("data");
             pic.setImageBitmap(imageBitmap);
+        } else {
+            File img = createImageFile("profile");
+            if (img.exists()){
+                pic.setImageURI(Uri.fromFile(img));
+                imageBitmap = null;
+            }
         }
     }
 
@@ -392,7 +339,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
             if (bla)
             {// Continue only if the File was successfully created
                 photoURI = Uri.fromFile(image);
-                System.out.println(photoURI.toString());
+                Log.d(TAG, "photoURI: "+photoURI.toString());
             }
         } finally {
             if (osfile != null)
@@ -401,13 +348,56 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         return Uri.fromFile(image);
     }
 
-    private void updateMeOld() {
+    private boolean isPhoneValid(String phone) {
+        return android.util.Patterns.PHONE.matcher(phone).matches();
+    }
+
+    private void updateMe() {
         if (!(buse||bfie||blae||bphe)) return;
 
+        View focusView = null;
+        boolean cancel = false;
+        final String phone = et_phone.getText().toString();
         final String usern = et_username.getText().toString().trim();
         final String first = et_first.getText().toString().trim();
         final String last = et_last.getText().toString().trim();
-        final String phone = et_phone.getText().toString();
+
+        if (!isPhoneValid(phone)) {
+            Log.d(TAG, "Phone is invalid");
+            et_phone.setError(getString(R.string.error_invalid_phone));
+            focusView = et_phone;
+            cancel = true;
+        }
+        if (last.length() < 2) { // "Al" is valid
+            et_last.setError(getString(R.string.error_short));
+            focusView = et_last;
+            cancel = true;
+        }
+        if (first.length() < 2) { // "Al" is valid
+            et_first.setError(getString(R.string.error_short));
+            focusView = et_first;
+            cancel = true;
+        }
+        if (usern.length() < 6) {
+            et_username.setError(getString(R.string.error_short));
+            focusView = et_username;
+            cancel = true;
+        }
+        if (cancel) {
+            focusView.requestFocus();
+            return;
+        }
+
+        Log.d(TAG,"buse: "+buse);
+        Log.d(TAG,"bfie: "+bfie);
+        Log.d(TAG,"blae: "+blae);
+        Log.d(TAG,"bphe: "+bphe);
+
+        final HashMap<String, Object> result = new HashMap<>();
+        if (buse) result.put("username", usern);
+        if (bfie) result.put("name", first);
+        if (blae) result.put("lastName", last);
+        if (bphe) result.put("phone", phone);
 
         // Update only text fields
         if (imageBitmap == null)
@@ -415,127 +405,40 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
             clearPreferences(); // Update is async, so clearing will prevent reading old data
             ProfileBean profile = new ProfileBean(me.getPhotoUrl().toString(), usern, first, last, phone, null);
             savePreferences(profile);
-            screamer.setText("Updating storage data...");screamer.setTextColor(Color.parseColor(red));
-            refDB.setValue(profile).addOnCompleteListener(new OnCompleteListener<Void>()
-            {
-                @Override
-                public void onComplete(@NonNull Task<Void> task) {
-                    screamer.setText("Updated storage data!");screamer.setTextColor(Color.parseColor(green));
-                }
-            });
-            screamer.setText("Updating profile...");screamer.setTextColor(Color.parseColor(red));
-            me.updateProfile(new UserProfileChangeRequest.Builder()
-                    .setDisplayName(usern)
-                    .build())
-                    .addOnSuccessListener(new OnSuccessListener<Void>()
-                    {
-                        @Override
-                        public void onSuccess(Void aVoid) {
-                            screamer.setText("Profile updated!");screamer.setTextColor(Color.parseColor(green));
-                        }
-                    });
 
-        }
-        else //upload photo and text fields
-        {
-            Uri tempUri;
-            // Save the Image to local file
-            try {
-                tempUri = saveImage(imageBitmap, "profile");
-            } catch (IOException e) {
-                e.printStackTrace();
-                return; //check permissions?
-            }
-            clearPreferences(); // Update is async, so clearing will prevent reading old data
-            savePreferences(new ProfileBean(null, usern, first,last,phone, null));
-            screamer.setText("Uploading photo...");screamer.setTextColor(Color.parseColor(red));
-            // Upload file to Firebase Storage
-            StorageReference photoRef = refProfilePics.child("profile");
-            mStorageRefUp = photoRef; // backup
-            photoRef.putFile(tempUri)
-                    .addOnSuccessListener(this, new OnSuccessListener<UploadTask.TaskSnapshot>()
-                    {
-                        @Override
-                        public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                            imageBitmap = null;
-                            // When the image has successfully uploaded, we get its download URL
-                            @SuppressWarnings("VisibleForTests")
-                            Uri downloadUrl = taskSnapshot.getDownloadUrl();
-                            mStorageRefUp = null;
-                            // Set the download URL and update Auth profile
-                            me.updateProfile(new UserProfileChangeRequest.Builder()
-                                    .setDisplayName(usern)
-                                    .setPhotoUri(downloadUrl)
-                                    .build())
-                                    .addOnSuccessListener(new OnSuccessListener<Void>()
-                                    {
-                                        @Override
-                                        public void onSuccess(Void aVoid) {
-                                            screamer.setText("Profile updated with image");screamer.setTextColor(Color.parseColor(green));
-                                        }
-                                    });
-                            // Set the download URL in object so that the user can send it to the database
-                            ProfileBean profile = new ProfileBean(downloadUrl.toString(), usern, first, last, phone, null);
-                            refDB.setValue(profile).addOnCompleteListener(new OnCompleteListener<Void>()
-                            {
-                                @Override
-                                public void onComplete(@NonNull Task<Void> task) {
-                                    screamer.setText("storage data updated with image");screamer.setTextColor(Color.parseColor(green));
-                                }
-                            });
-                        }
-                    })
-                    .addOnFailureListener(this, new OnFailureListener()
-                    {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            Toast.makeText(MyProfileActivity.this, "Upload failed!", Toast.LENGTH_SHORT).show();
-                            screamer.setText("Uploading photo failed");screamer.setTextColor(Color.parseColor(red));
-                        }
-                    });
-        }
-    }
-
-    private void updateMe() {
-        if (!(buse||bfie||blae||bphe)) return;
-
-        final String usern = et_username.getText().toString().trim();
-        final String first = et_first.getText().toString().trim();
-        final String last = et_last.getText().toString().trim();
-        final String phone = et_phone.getText().toString();
-
-        // Update only text fields
-        if (imageBitmap == null) {
-            clearPreferences(); // Update is async, so clearing will prevent reading old data
-            ProfileBean profile = new ProfileBean(me.getPhotoUrl().toString(), usern, first, last, phone, null);
-            savePreferences(profile);
-            screamer.setText("Updating storage data...");
-            screamer.setTextColor(Color.parseColor(red));
-            refDB.setValue(profile).addOnCompleteListener(new OnCompleteListener<Void>()
-            {
-                @Override
-                public void onComplete(@NonNull Task<Void> task) {
-                    screamer.setText("Updated storage data!");
-                    screamer.setTextColor(Color.parseColor(green));
-                }
-            });
-            screamer.setText("Updating profile...");
-            screamer.setTextColor(Color.parseColor(red));
+            Log.d(TAG, "Updating profile...");
             if (buse) {
+                Log.d(TAG,"Updating profile name.");
                 me.updateProfile(new UserProfileChangeRequest.Builder()
                         .setDisplayName(usern)
                         .build())
-                        .addOnSuccessListener(new OnSuccessListener<Void>()
+                        .addOnCompleteListener(new OnCompleteListener<Void>()
                         {
                             @Override
-                            public void onSuccess(Void aVoid) {
-                                screamer.setText("Profile updated!");
-                                screamer.setTextColor(Color.parseColor(green));
+                            public void onComplete(@NonNull Task<Void> task) {
+                                if (task.isSuccessful()) Log.d(TAG, "Profile updated!");
+                                else Log.e(TAG, "Profile update failed!");
                             }
                         });
+            } else {
+                Log.d(TAG,"Updating profile skipped");
+            }
+
+            Log.d(TAG, "Updating database...");
+            if (!result.isEmpty()){
+                refDB.updateChildren(result).addOnCompleteListener(new OnCompleteListener<Void>()
+                {
+                    @Override
+                    public void onComplete(@NonNull Task<Void> task) {
+                        if (task.isSuccessful()) Log.d(TAG, "Updated database!");
+                        else Log.e(TAG, "Database update failed!");
+                    }
+                });
+            } else {
+                Log.d(TAG,"Updating database skipped");
             }
         }
-        else //upload photo and text fields
+        else // Upload photo and text fields
         {
             Uri tempUri;
             // Save the Image to local file
@@ -547,8 +450,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
             }
             clearPreferences(); // Update is async, so clearing will prevent reading old data
             savePreferences(new ProfileBean(null, usern, first, last, phone, null));
-            screamer.setText("Uploading photo...");
-            screamer.setTextColor(Color.parseColor(red));
+            Log.d(TAG,"Uploading photo...");
             // Upload file to Firebase Storage
             StorageReference photoRef = refProfilePics.child("profile");
             mStorageRefUp = photoRef; // backup
@@ -562,7 +464,9 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                             // When the image has successfully uploaded, we get its download URL
                             @SuppressWarnings("VisibleForTests")
                             Uri downloadUrl = taskSnapshot.getDownloadUrl();
+                            result.put("photoUrl", downloadUrl.toString());
                             // Set the download URL and update Auth profile
+                            // Here I could skip adding username
                             me.updateProfile(new UserProfileChangeRequest.Builder()
                                     .setDisplayName(usern)
                                     .setPhotoUri(downloadUrl)
@@ -571,18 +475,16 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                                     {
                                         @Override
                                         public void onSuccess(Void aVoid) {
-                                            screamer.setText("Profile updated with image");
-                                            screamer.setTextColor(Color.parseColor(green));
+                                            Log.d(TAG,"Profile updated with image");
                                         }
                                     });
                             // Set the download URL in object so that the user can send it to the database
-                            ProfileBean profile = new ProfileBean(downloadUrl.toString(), usern, first, last, phone, null);
-                            refDB.setValue(profile).addOnCompleteListener(new OnCompleteListener<Void>()
+                            refDB.updateChildren(result).addOnCompleteListener(new OnCompleteListener<Void>()
                             {
                                 @Override
                                 public void onComplete(@NonNull Task<Void> task) {
-                                    screamer.setText("storage data updated with image");
-                                    screamer.setTextColor(Color.parseColor(green));
+                                    if (task.isSuccessful()) Log.d(TAG,"Updated database!");
+                                    else Log.e(TAG, "Database update failed!");
                                 }
                             });
                         }
@@ -592,8 +494,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                         @Override
                         public void onFailure(@NonNull Exception e) {
                             Toast.makeText(MyProfileActivity.this, "Upload failed!", Toast.LENGTH_SHORT).show();
-                            screamer.setText("Uploading photo failed");
-                            screamer.setTextColor(Color.parseColor(red));
+                            Log.e(TAG,"Uploading photo failed: "+e.getMessage());
                         }
                     });
         }
@@ -603,7 +504,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
      *    If your process is shut down, any uploads/downloads in progress will be interrupted.
      *    However, you can continue uploading once the process restarts by resuming the upload session with the server. (via getUploadSessionUri)
      *    This can save time and bandwidth by not starting the upload from the start of the file.
-     *    But I upload one small image and I don't care.
+     *    But I upload one small image
      */
 
     @Override

@@ -2,20 +2,15 @@ package com.demo.mosisapp;
 
 import android.app.Activity;
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.support.annotation.Nullable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
-
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.RequestOptions;
 
-import java.util.List;
-
-public class FriendsListAdapter extends ArrayAdapter<ProfileBean>
+class FriendsListAdapter extends ArrayAdapter<ProfileBean>
 {
     /**
      * Constructor
@@ -25,7 +20,7 @@ public class FriendsListAdapter extends ArrayAdapter<ProfileBean>
      *                 instantiating views.
      * objects  The objects to represent in the ListView.
      */
-    public FriendsListAdapter(Context context, int resource/*, @NonNull List<ProfileBean> objects*/) {
+    FriendsListAdapter(Context context, int resource/*, @NonNull List<ProfileBean> objects*/) {
             super(context, resource/*, objects*/);
     }
 
@@ -40,15 +35,17 @@ public class FriendsListAdapter extends ArrayAdapter<ProfileBean>
         TextView mName = (TextView) convertView.findViewById(R.id.item_plist_name);
 
         ProfileBean beanie = getItem(position);
-        mUsername.setText(beanie.getUsername());
-        String name = "("+beanie.getName()+" "+beanie.getLastName()+")";
-        mName.setText(name);
-        boolean isPhoto = beanie.getPhotoUrl() != null;
-        if (isPhoto) {
-            Glide.with(getContext())
-                    .load(beanie.getPhotoUrl())
-                    .apply(RequestOptions.circleCropTransform())
-                    .into(mImage);
+        if (beanie!=null) {
+            mUsername.setText(beanie.getUsername());
+            String name = "(" + beanie.getName() + " " + beanie.getLastName() + ")";
+            mName.setText(name);
+            boolean isPhoto = beanie.getPhotoUrl() != null;
+            if (isPhoto) {
+                Glide.with(getContext())
+                        .load(beanie.getPhotoUrl())
+                        .apply(RequestOptions.circleCropTransform())
+                        .into(mImage);
+            }
         }
         return convertView;
     }
