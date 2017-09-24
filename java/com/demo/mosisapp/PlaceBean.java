@@ -7,7 +7,6 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 
-// TODO change Date field to timestamp
 @IgnoreExtraProperties
 public class PlaceBean
 {
@@ -15,8 +14,6 @@ public class PlaceBean
     private Double plongitude;
     private String type;
     private String attribute;
-    private String comment;
-    private int rating;
     private Long date;
     private int points;
     private String author;
@@ -51,22 +48,6 @@ public class PlaceBean
 
     public void setAttribute(String attribute) {
         this.attribute = attribute;
-    }
-
-    public String getComment() {
-        return comment;
-    }
-
-    public void setComment(String comment) {
-        this.comment = comment;
-    }
-
-    public int getRating() {
-        return rating;
-    }
-
-    public void setRating(int rating) {
-        this.rating = rating;
     }
 
     public Long getDate() {
@@ -113,7 +94,7 @@ public class PlaceBean
         //fmt.format(cal.getTime()); //This returns a string formatted in the above way.
     }
 
-    public LatLng location(){
+    protected LatLng location(){
         return new LatLng(getPlatitude(),getPlongitude());
     }
 }

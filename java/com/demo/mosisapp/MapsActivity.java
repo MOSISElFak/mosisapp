@@ -24,9 +24,6 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
@@ -81,18 +78,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import static com.demo.mosisapp.Constants.GEOFENCE_RADIUS;
-
-/* (Notes from Google) @SuppressWarnings("MissingPermission") try @SuppressWarnings({"ResourceType"}) or //noinspection MissingPermission
- * Note: If you're using the v7 appcompat library, your activity should instead extend AppCompatActivity, which is a subclass of FragmentActivity. (For more information, read Adding the App Bar)
- * Note: When you add a fragment to an activity layout by defining the fragment in the layout XML file, you cannot remove the fragment at runtime.
- * For starters, Fragment will be created in XML and set on creation. And AppCompatLib supports the easy action bar
- * ?idea? MainActivity can be merged with this one
- * ?idea? Later, MainActivity will load empty fragment on startup, and after login/register user display map fragment
- */
 //setPersistanceEnabled(true) only caches data when there is a Listener attached to that node (when the data has been read at least once).
 //keepSynced(true) caches everything from that node, even if there is no listener attached.
 //The android geofences get removed every time you reboot your device or every time you toggle the location mode
+
+// (Notes from Google) @SuppressWarnings("MissingPermission") try @SuppressWarnings({"ResourceType"}) or //noinspection MissingPermission
+// Note: When you add a fragment to an activity layout by defining the fragment in the layout XML file, you cannot remove the fragment at runtime.
 // Note: Markers can not be "re-added" after calling marker.remove(), so there is no way to "hide" them except deletion.
 
 public class MapsActivity extends AppCompatActivity
@@ -100,39 +91,34 @@ implements OnMapReadyCallback
         ,GoogleMap.OnMapLongClickListener
         ,GoogleMap.OnMarkerClickListener, View.OnClickListener
 {
-
     private final String TAG = "MapsActivity";
-
-    private boolean isGeoActive = false;
     private boolean mLocationPermissionGranted = true;
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
-    private final int RC_SCOREBOARD = 321;
-    //location access
 
+    //location access
+    private GoogleMap mMap;
     private int DEFAULT_ZOOM = 15;
     private final LatLng mDefaultLocation = new LatLng(48.137154, 11.576124); //maps could have default locations based on regions
     private LatLngBounds MUNICH = new LatLngBounds(new LatLng(48.047983, 11.363986), new LatLng(48.249102, 11.756060));
-
-    private GoogleMap mMap;
 
     private Marker myMarker;
     private LatLng mLastKnownLocation;
     private boolean mapOnline = false;
 
-    //RealtimeDB
+    // RealtimeDB references
     private FirebaseDatabase mFirebaseDatabase;         //main access point
     private DatabaseReference refLocation;
     private DatabaseReference refMyFriends;
     private DatabaseReference refUsers;
     private DatabaseReference refFilterResults;
 
-    // Friends and listeners
+    // Listeners
     private ChildEventListener mChildEventListenerFriends;
     private ChildEventListener mChildEventListenerLocations;
     private ValueEventListener mValueEventListenerFilters;
     private ChildEventListener mChildEventListenerALLUsers;
 
-    private List<String> friends;
+    private List<String> friends;   //used for removing listeners on friends
 
     RequestOptions requestOptions;
 
@@ -144,45 +130,28 @@ implements OnMapReadyCallback
     private DatabaseReference refPlaces;
     private HashMap<String, Marker> hash_place_markers;     //pushKey => Marker
     private HashMap<String, Circle> hash_circles;           //geoKey => Circle
-    FloatingActionButton fab_main, fab1, fab2, fab3, fab_type, fab_date;
-    boolean isOpenFabMain = false;
-    boolean isOpenFabSearch = false;
 
     //service
     protected MyResultReceiver resultReceiver;              //listener for SERVICE->CLIENT events
     private boolean isServiceBound = false;                 //flag for bound to service
 
-    private static final String KEY_CAMERA_POSITION = "camera_position";
-    private static final String KEY_LOCATION = "camera_location";
-
     private DrawerLayout mDrawerLayout;
     private Switch switchGeofences, switchUserfences, switchPeople, switchOnline, switchRadius;
+    private FloatingActionButton fab_main, fab1, fab2, fab3, fab_type, fab_date;
+    private boolean isOpenFabMain = false;
+    private boolean isOpenFabSearch = false;
 
     private int flagRadius = 0;
-    private boolean useRadius = false;
-    private boolean shouldStop = false;                     //option for stoping background service
-    private boolean shouldGeofence = false;
-    private boolean shouldUserfence = false;
+    private boolean useRadius = false;          //flag for filtering places
+    private boolean shouldStop = false;         //flag for stoping background service
+    private boolean shouldGeofence = false;     //flag for activating geofences
+    private boolean shouldUserfence = false;    //flag for notifications about close users
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         Log.d(TAG,"onCreate");
-
-        fab_main = (FloatingActionButton) findViewById(R.id.fab_main);
-        fab1 = (FloatingActionButton)findViewById(R.id.fab1);   //search fab
-        fab2 = (FloatingActionButton)findViewById(R.id.fab2);
-        fab3 = (FloatingActionButton)findViewById(R.id.fab3);
-        fab_type = (FloatingActionButton)findViewById(R.id.fab2_type);
-        fab_date = (FloatingActionButton)findViewById(R.id.fab3_date);
-
-        fab_main.setOnClickListener(this);
-        fab1.setOnClickListener(this); //Search FAB
-        fab2.setOnClickListener(this);
-        fab3.setOnClickListener(this);
-        fab_type.setOnClickListener(this);
-        fab_date.setOnClickListener(this);
 
         // Initializations
         friends = new ArrayList<>();
@@ -200,15 +169,27 @@ implements OnMapReadyCallback
 
         refFilterResults = FirebaseDatabase.getInstance().getReference().child("filter/results").child(FirebaseAuth.getInstance().getCurrentUser().getUid());
 
+        fab_main = (FloatingActionButton) findViewById(R.id.fab_main);
+        fab1 = (FloatingActionButton)findViewById(R.id.fab1);   //search fab
+        fab2 = (FloatingActionButton)findViewById(R.id.fab2);
+        fab3 = (FloatingActionButton)findViewById(R.id.fab3);
+        fab_type = (FloatingActionButton)findViewById(R.id.fab2_type);
+        fab_date = (FloatingActionButton)findViewById(R.id.fab3_date);
+
+        fab_main.setOnClickListener(this);
+        fab1.setOnClickListener(this); //Search FAB
+        fab2.setOnClickListener(this);
+        fab3.setOnClickListener(this);
+        fab_type.setOnClickListener(this);
+        fab_date.setOnClickListener(this);
+
         requestOptions = new RequestOptions()                               // GLIDE options for friends icons
                 .diskCacheStrategy(DiskCacheStrategy.ALL)                   //DATA(original),RESOURCE(after transformations)
                 .placeholder(R.drawable.ic_action_marker_person_color)      //default icon before loading
-                .fallback(R.drawable.ic_action_marker_person_color)         //default icon in case of null
-                //.fallback(new ColorDrawable(Color.GRAY));
+                .fallback(R.drawable.ic_person_green)         //default icon in case of null
                 .priority(Priority.HIGH)
                 .circleCrop()
                 .override(50, 50);
-
 
         mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
         initializeDrawer();
@@ -245,6 +226,61 @@ implements OnMapReadyCallback
         switchPeople.setOnClickListener(this);
         switchOnline.setOnClickListener(this);
         switchRadius.setOnClickListener(this);
+    }
+
+    private void askGeofencingDialog() {
+        Log.d(TAG, "askGeofencingDialog");
+        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+        builder.setTitle("Place Notifications");
+        builder.setMessage("Turn on notifications when you are near selected places?");
+        builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Log.d(TAG, "askGeofencingDialog: OK");
+                startGeofencing();
+            }
+        }).setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Log.d(TAG, "askGeofencingDialog: CANCEL");
+                shouldGeofence = false;
+                switchGeofences.setChecked(false);
+            }
+        }).show();
+    }
+
+    private void askRadiusDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+        builder.setTitle("Select Radius");
+        //builder.setView(R.layout.dialog_radius);
+        final View ad = getLayoutInflater().inflate(R.layout.dialog_radius, null);
+        final NumberPicker np = (NumberPicker)ad.findViewById(R.id.radius_picker);
+        np.setMaxValue(10);//10km
+        np.setMinValue(1); //1km
+        builder.setView(ad);
+        builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Log.d(TAG, "onClick: OK "+which);
+                Log.d(TAG, String.valueOf(np.getValue()));
+                useRadius=true;
+                getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("useRadius",useRadius).commit();
+                getSharedPreferences("flags",MODE_PRIVATE).edit().putInt("flagRadius",flagRadius).commit();
+                switchRadius.setChecked(true);
+                flagRadius = np.getValue()*1000;
+            }
+        })
+                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
+                {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        Log.d(TAG, "onClick: Cancel "+which);
+                        switchRadius.setChecked(useRadius);
+                    }
+                }).create().show();
     }
 
     private void animateSearchFabs() {
@@ -415,9 +451,81 @@ implements OnMapReadyCallback
         moveTaskToBack(true);
     }
 
+    /**
+     * Will be called when a user clicks on notification
+     * If the activity is already open, will prevent destroying and re-creating the activity
+     * @param intent intent that is sent with notifications
+     */
     @Override
-    public void onClick(View v)
-    {
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+
+        Bundle extras = intent.getExtras();
+        if (extras != null) {
+            if (extras.containsKey("FriendID")) {
+                //This is a friend from [MyNotificationService]
+                Log.d(TAG,"onNewIntent: FriendID: "+extras.getString("FriendID"));
+            }
+            else if(extras.containsKey("GeofenceID")){
+                //This is a geofence from [GeofenceIntentService]
+                Log.d(TAG,"onNewIntent: GeofenceID: "+extras.getString("GeofenceID"));
+                refPlaces.child(extras.getString("GeofenceID")).addListenerForSingleValueEvent(new ValueEventListener()
+                {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        if (dataSnapshot.exists()){
+                            final PlaceBean geof = dataSnapshot.getValue(PlaceBean.class);
+                            if (geof==null) return;
+                            FirebaseDatabase.getInstance().getReference().child("points/app").child(FirebaseAuth.getInstance().getCurrentUser().getUid())
+                                    .addListenerForSingleValueEvent(new ValueEventListener()
+                                    {
+                                        @Override
+                                        public void onDataChange(DataSnapshot dataSnapshot) {
+                                            Log.d(TAG,"points:");
+                                            int points = 0;
+                                            if (dataSnapshot.exists()){
+                                                points = dataSnapshot.getValue(Integer.class);
+                                            }
+                                            points+=geof.getPoints();
+                                            FirebaseDatabase.getInstance().getReference().child("points/app").child(FirebaseAuth.getInstance().getCurrentUser().getUid()).setValue(points);
+                                        }
+
+                                        @Override
+                                        public void onCancelled(DatabaseError databaseError) {
+                                            Log.e(TAG,databaseError.getMessage());
+                                        }
+                                    });
+                            if (!hash_place_markers.containsKey(dataSnapshot.getKey())){
+                                MarkerOptions mo = new MarkerOptions()
+                                        .position(new LatLng(geof.getPlatitude(),geof.getPlongitude()))
+                                        .icon(decideIcon(geof.getType()))
+                                        .title(geof.getAttribute());
+                                Marker marker = mMap.addMarker(mo);
+                                hash_place_markers.put(dataSnapshot.getKey(), marker);
+                            }
+                            CircleOptions circleOptions = new CircleOptions()
+                                    .center(new LatLng(geof.getPlatitude(),geof.getPlongitude()))
+                                    .strokeColor(Color.argb(50, 70, 70, 70))
+                                    .fillColor(Color.argb(100, 150, 150, 150))
+                                    .radius(Constants.GEOFENCE_RADIUS);
+                            hash_circles.put(dataSnapshot.getKey(),mMap.addCircle(circleOptions));
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(DatabaseError databaseError) {
+                        Log.e(TAG,databaseError.getMessage());
+                    }
+                });
+            }
+            else {
+                Log.d(TAG,"onNewIntent got some extras");
+            }
+        }
+    }
+
+    @Override
+    public void onClick(View v) {
         switch(v.getId()){
             case R.id.drawer_textview_profile:      //View My Profile
                 Log.d(TAG, "onClick: View My Profile");
@@ -429,7 +537,7 @@ implements OnMapReadyCallback
                 Log.d(TAG, "onClick: Show Scoreboard");
                 mDrawerLayout.closeDrawers();
                 Intent board = new Intent(this,ScoreboardActivity.class);
-                startActivityForResult(board, RC_SCOREBOARD);
+                startActivity(board);
                 break;
             case R.id.drawer_textview_logout:       //Log out
                 Log.d(TAG, "onClick: Log out");
@@ -528,67 +636,7 @@ implements OnMapReadyCallback
         }
     }
 
-    private void askGeofencingDialog() {
-        Log.d(TAG, "askGeofencingDialog");
-        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
-        builder.setTitle("Place Notifications");
-        builder.setMessage("Turn on notifications when you are near selected places?");
-        builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
-        {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Log.d(TAG, "askGeofencingDialog: OK");
-                startGeofencing();
-            }
-        }).setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
-        {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Log.d(TAG, "askGeofencingDialog: CANCEL");
-                shouldGeofence = false;
-                switchGeofences.setChecked(false);
-            }
-        }).show();
-    }
-
-    private void askRadiusDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
-        builder.setTitle("Select Radius");
-        //builder.setView(R.layout.dialog_radius);
-        final View ad = getLayoutInflater().inflate(R.layout.dialog_radius, null);
-        final NumberPicker np = (NumberPicker)ad.findViewById(R.id.radius_picker);
-        np.setMaxValue(10);//10km
-        np.setMinValue(1); //1km
-        builder.setView(ad);
-        builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
-        {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Log.d(TAG, "onClick: OK "+which);
-                Log.d(TAG, String.valueOf(np.getValue()));
-                useRadius=true;
-                getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("useRadius",useRadius).commit();
-                getSharedPreferences("flags",MODE_PRIVATE).edit().putInt("flagRadius",flagRadius).commit();
-                switchRadius.setChecked(true);
-                flagRadius = np.getValue()*1000;
-            }
-        })
-        .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
-        {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Log.d(TAG, "onClick: Cancel "+which);
-                switchRadius.setChecked(useRadius);
-            }
-        }).create().show();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode==RC_SCOREBOARD){
-            Log.d(TAG, "onActivityResult, RC_SCOREBOARD"); //DOESNT WORK, try adding "stay in history flag"?
-        }
-    }
+    //<editor-fold desc="Service Controld">
 
     private void startLocationService() {
         Log.d(TAG,"startLocationService");
@@ -597,17 +645,11 @@ implements OnMapReadyCallback
         i.putExtra("receiver", resultReceiver);
         startService(i); //this return immediately
     }
+
     private void bindToService() {
         Log.d(TAG,"bindToService");
         Intent i = new Intent(this,MyLocationService.class);
         bindService(i, mServiceConnection, BIND_AUTO_CREATE|BIND_ADJUST_WITH_ACTIVITY); //TODO: note added flag
-    }
-
-    private void stopLocationService() {
-        Log.d(TAG,"stopLocationService");
-        if (isServiceBound) unbindFromService();
-        Intent i = new Intent(this,MyLocationService.class);
-        stopService(i);
     }
 
     private void unbindFromService() {
@@ -620,124 +662,85 @@ implements OnMapReadyCallback
         }
     }
 
+    private void stopLocationService() {
+        Log.d(TAG,"stopLocationService");
+        if (isServiceBound) unbindFromService();
+        Intent i = new Intent(this,MyLocationService.class);
+        stopService(i);
+    }
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
-    @Override
-    @SuppressWarnings("MissingPermission")
-    public void onMapReady(GoogleMap googleMap) {
-        Log.d(TAG, "onMapReady");
-        mMap = googleMap;
-        mapOnline = true;
-        //mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);//HYBRID =satelite+terrain, TERRAIN =roads
-        //googleMap.getUiSettings().setMapToolbarEnabled(false); //for not displaying bottom toolbar (navigation and directions)
+    class MyResultReceiver extends ResultReceiver {
+        public MyResultReceiver(Handler handler) {
+            super(handler);
+        }
 
-        try {
-            // Customise the styling of the base map using a JSON object defined in a raw resource file.
-            boolean success = mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.silver_map_with_icons));
-
-            if (!success) {
-                Log.e("OnMapReady", "Style parsing failed.");
+        @Override
+        protected void onReceiveResult(int resultCode, Bundle resultData)
+        {
+            if(resultCode == 100){
+                Log.d(TAG,"onReceiveResult: connected!");
+                if (resultData!=null && resultData.containsKey("loc")) {
+                    mLastKnownLocation = resultData.getParcelable("loc");
+                    Log.d(TAG, "onReceiveResult: we got the last known location");
+                }
+                onGACConnected(); //loads map
             }
-        } catch ( Resources.NotFoundException e ) {
-            Log.e("OnMapReady", "Can't find style. Error: ", e);
+            else if(resultCode == 101){
+                Log.d(TAG,"onReceiveResult: connection suspended, reconnecting");
+            }
+            else if(resultCode == 102){
+                Log.d(TAG,"onReceiveResult: connection failed");
+                //error has to handled from activity
+                //https://developers.google.com/android/guides/api-client#handle_connection_failures
+            }
+            else if(resultCode==103){
+                Log.d(TAG,"onReceiveResult: location updated");
+                if (resultData!=null){
+                    newLocationChanged(resultData.getDouble("loc_lat"),resultData.getDouble("loc_lon"));
+                }
+            }
+            else if (resultCode==104){
+                Log.d(TAG,"onReceiveResult: geofences");
+                if (resultData!=null){
+                    Toast.makeText(MapsActivity.this, resultData.getString("error"), Toast.LENGTH_SHORT).show();
+                } else {
+                    shouldGeofence = true;
+                    switchGeofences.setChecked(true);
+                    getSharedPreferences("flags", MODE_PRIVATE).edit().putBoolean("shouldGeofence", shouldGeofence).apply();
+                }
+            }
+            else if (resultCode==105){
+                shouldGeofence = false;
+                switchGeofences.setChecked(false);
+            }
+            else{
+                Log.d(TAG,"onReceiveResult: Result Received "+resultCode);
+            }
         }
-
-        //findViewById(R.id.map).setVisibility(View.VISIBLE);
-        mMap.setMyLocationEnabled(true); // shows realtime blue dot (me) on map
-        //mMap.getUiSettings().setMyLocationButtonEnabled(true); // ze button
-        mMap.getUiSettings().setZoomControlsEnabled(true);
-        mMap.setMaxZoomPreference(20);
-        mMap.setMinZoomPreference(14);
-        mMap.setLatLngBoundsForCameraTarget(MUNICH);
-
-        if (mLastKnownLocation != null) {
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mLastKnownLocation, DEFAULT_ZOOM));
-            if (myMarker==null) myMarker = createMyMarker();
-            else myMarker.setPosition(mLastKnownLocation);
-        } else {
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM)); //with no location, you get map of earth
-        }
-        mMap.setOnMarkerClickListener(this);
-        mMap.setOnMapLongClickListener(this);
-
-        attachListeners();
     }
 
-    @Override
-    public boolean onMarkerClick(Marker marker) {
-        Log.d(TAG, "onMarkerClick");
-        if (hash_marker_id.containsValue(marker)){
-            Intent intent = new Intent(MapsActivity.this, ProfileActivity.class);
-            String extra = hash_marker_id.get(marker);
-            intent.putExtra("key_id", extra);
-            startActivity(intent);
-        }
-        else {
-            marker.showInfoWindow(); //TODO test now if it works
-        }
-        return true;
-    }
+    // will be called when service is bound
+    private MyLocationService.MyBinder myBinder;
+    private ServiceConnection mServiceConnection = new ServiceConnection() {
 
-    @Override
-    public void onMapLongClick(LatLng latLng) {
-        //float distanceInMeters =  targetLocation.distanceTo(myLocation);
-        Toast.makeText(this, latLng.latitude + ": "+latLng.longitude, Toast.LENGTH_SHORT).show();
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.menu_map, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        //int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        switch (item.getItemId()) {
-            case (R.id.menu_start_geofences):
-                myBinder.startGeofencing();
-                return true;
-            case (R.id.menu_hide_geofences):
-                //isMyServiceRunning(MyLocationService.class);
-                //eraseGeofenceCircles(true);
-                fillClientGeofences();
-                return true;
-            case (R.id.menu_delete_geofences):
-                myBinder.stopGeofencing();
-                return true;
-            case (R.id.menu_show_all_places):
-                //showAllUsers();
-                showAllPlaces();
-                return true; // absorbed event
-            case (R.id.menu_remove_all_places):
-                //removeAllUsers();
-                removeAllPlaces();
-                return true;
-            case (R.id.menu_search_date):
-                searchDate();
-                return true;
-            case (R.id.menu_search_server):
-                searchMapRadiusServer(100,"type","Recycle");
-                return true;
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            Log.e(TAG, "onServiceDisconnected: Service has unexpectedly disconnected");
+            isServiceBound = false;
+            myBinder = null;
         }
 
-        return super.onOptionsItemSelected(item);
-    }
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            Log.d(TAG,"onServiceConnected");
+            myBinder = (MyLocationService.MyBinder) service;
+            isServiceBound = true;
+        }
+    };
 
+    //</editor-fold>
+
+    //<editor-fold desc="Friends and Users">
 
     private void detachDatabaseReadListener() {
         if (mChildEventListenerFriends != null) {
@@ -944,8 +947,10 @@ implements OnMapReadyCallback
         hash_id_marker_users.clear();
     }
 
+    //</editor-fold>
 
-//**********************************************************************************************[ PLACES }**********************
+    //<editor-fold desc="Filtering Places">
+
     private BitmapDescriptor decideIcon(String type) {
         switch(type){
             case("Recycle"):
@@ -989,12 +994,14 @@ implements OnMapReadyCallback
     }
 
     private void removeAllPlaces() {
-
+        Log.d(TAG, "removeAllPlaces");
         for (Map.Entry<String, Circle> entry : hash_circles.entrySet())
         {
-            entry.getValue().remove(); //delete FROM MAP
+            Log.d(TAG,entry.getKey()+" removed!");
+            entry.getValue().remove();
         }
         hash_circles.clear();
+
         if (hash_place_markers!=null){
             for (Map.Entry<String, Marker> entry : hash_place_markers.entrySet())
             {
@@ -1308,6 +1315,80 @@ implements OnMapReadyCallback
         });
     }
 
+    //</editor-fold>
+
+    //<editor-fold desc="Map Related">
+    /**
+     * Manipulates the map once available.
+     * This callback is triggered when the map is ready to be used.
+     * This is where we can add markers or lines, add listeners or move the camera. In this case,
+     * we just add a marker near Sydney, Australia.
+     * If Google Play services is not installed on the device, the user will be prompted to install
+     * it inside the SupportMapFragment. This method will only be triggered once the user has
+     * installed Google Play services and returned to the app.
+     */
+    @Override
+    @SuppressWarnings("MissingPermission")
+    public void onMapReady(GoogleMap googleMap) {
+        Log.d(TAG, "onMapReady");
+        mMap = googleMap;
+        mapOnline = true;
+        //mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);//HYBRID =satelite+terrain, TERRAIN =roads
+        //googleMap.getUiSettings().setMapToolbarEnabled(false); //for not displaying bottom toolbar (navigation and directions)
+
+        try {
+            // Customise the styling of the base map using a JSON object defined in a raw resource file.
+            boolean success = mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.silver_map_with_icons));
+
+            if (!success) {
+                Log.e("OnMapReady", "Style parsing failed.");
+            }
+        } catch ( Resources.NotFoundException e ) {
+            Log.e("OnMapReady", "Can't find style. Error: ", e);
+        }
+
+        //findViewById(R.id.map).setVisibility(View.VISIBLE);
+        mMap.setMyLocationEnabled(true); // shows realtime blue dot (me) on map
+        //mMap.getUiSettings().setMyLocationButtonEnabled(true); // ze button
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+        mMap.setMaxZoomPreference(20);
+        mMap.setMinZoomPreference(14);
+        mMap.setLatLngBoundsForCameraTarget(MUNICH);
+
+        if (mLastKnownLocation != null) {
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mLastKnownLocation, DEFAULT_ZOOM));
+            if (myMarker==null) myMarker = createMyMarker();
+            else myMarker.setPosition(mLastKnownLocation);
+        } else {
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM)); //with no location, you get map of earth
+        }
+        mMap.setOnMarkerClickListener(this);
+        mMap.setOnMapLongClickListener(this);
+
+        attachListeners();
+    }
+
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        Log.d(TAG, "onMarkerClick");
+        if (hash_marker_id.containsValue(marker)){
+            Intent intent = new Intent(MapsActivity.this, ProfileActivity.class);
+            String extra = hash_marker_id.get(marker);
+            intent.putExtra("key_id", extra);
+            startActivity(intent);
+        }
+        else {
+            marker.showInfoWindow(); //TODO test now if it works
+        }
+        return true;
+    }
+
+    @Override
+    public void onMapLongClick(LatLng latLng) {
+        //float distanceInMeters =  targetLocation.distanceTo(myLocation);
+        Toast.makeText(this, latLng.latitude + ": "+latLng.longitude, Toast.LENGTH_SHORT).show();
+    }
+
     /**
      * Builds the map when the Google Play services client is successfully connected.
      */
@@ -1330,12 +1411,13 @@ implements OnMapReadyCallback
 
     private Marker createMyMarker() {
         return mMap.addMarker(new MarkerOptions()
-                .title(getString(R.string.default_info_title))
+                //.title(getString(R.string.default_info_title))
                 .position(mLastKnownLocation)
-                .snippet(getString(R.string.default_info_snippet))
+                //.snippet(getString(R.string.default_info_snippet))
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_action_location_me_dark)));
-                //.alpha(0.7f));
     }
+
+    //</editor-fold>
 
     public void checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(MapsActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
@@ -1346,60 +1428,6 @@ implements OnMapReadyCallback
         }
     }
 
-    /**
-     * Will be called when a user clicks on notification
-     * If the activity is already open, will prevent destroying and re-creating the activity
-     * @param intent intent that is sent with notifications
-     */
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-
-        Bundle extras = intent.getExtras();
-        if (extras != null) {
-            if (extras.containsKey("FriendID")) {
-                //This is a friend from [MyNotificationService]
-                Log.d(TAG,"onNewIntent: FriendID: "+extras.getString("FriendID"));
-            }
-            else if(extras.containsKey("GeofenceID")){
-                //This is a geofence from [GeofenceIntentService]
-                Log.d(TAG,"onNewIntent: GeofenceID: "+extras.getString("GeofenceID"));
-                refPlaces.child(extras.getString("GeofenceID")).addListenerForSingleValueEvent(new ValueEventListener()
-                {
-                    @Override
-                    public void onDataChange(DataSnapshot dataSnapshot) {
-                        if (dataSnapshot.exists()){
-                            PlaceBean geof = dataSnapshot.getValue(PlaceBean.class);
-                            if (geof==null) return;
-                            if (!hash_place_markers.containsKey(dataSnapshot.getKey())){
-                                MarkerOptions mo = new MarkerOptions()
-                                        .position(new LatLng(geof.getPlatitude(),geof.getPlongitude()))
-                                        .icon(decideIcon(geof.getType()))
-                                        .title(geof.getAttribute());
-                                Marker marker = mMap.addMarker(mo);
-                                hash_place_markers.put(dataSnapshot.getKey(), marker);
-                            }
-                            CircleOptions circleOptions = new CircleOptions()
-                                    .center(new LatLng(geof.getPlatitude(),geof.getPlongitude()))
-                                    .strokeColor(Color.argb(50, 70, 70, 70))
-                                    .fillColor(Color.argb(100, 150, 150, 150))
-                                    .radius(GEOFENCE_RADIUS);
-                            hash_circles.put(dataSnapshot.getKey(),mMap.addCircle(circleOptions));
-                        }
-                    }
-
-                    @Override
-                    public void onCancelled(DatabaseError databaseError) {
-                        Log.e(TAG,databaseError.getMessage());
-                    }
-                });
-            }
-            else {
-                Log.d(TAG,"onNewIntent got some extras");
-            }
-        }
-    }
-
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -1407,76 +1435,6 @@ implements OnMapReadyCallback
             mLocationPermissionGranted=true;
         }
     }
-
-    class MyResultReceiver extends ResultReceiver {
-        public MyResultReceiver(Handler handler) {
-            super(handler);
-        }
-
-        @Override
-        protected void onReceiveResult(int resultCode, Bundle resultData)
-        {
-            if(resultCode == 100){
-                Log.d(TAG,"onReceiveResult: connected!");
-                if (resultData!=null && resultData.containsKey("loc")) {
-                    mLastKnownLocation = resultData.getParcelable("loc");
-                    Log.d(TAG, "onReceiveResult: we got the last known location");
-                }
-                onGACConnected(); //loads map
-            }
-            else if(resultCode == 101){
-                Log.d(TAG,"onReceiveResult: connection suspended, reconnecting");
-            }
-            else if(resultCode == 102){
-                Log.d(TAG,"onReceiveResult: connection failed");
-                //error has to handled from activity
-                //https://developers.google.com/android/guides/api-client#handle_connection_failures
-            }
-            else if(resultCode==103){
-                Log.d(TAG,"onReceiveResult: location updated");
-                if (resultData!=null){
-                    newLocationChanged(resultData.getDouble("loc_lat"),resultData.getDouble("loc_lon"));
-                }
-            }
-            else if (resultCode==104){
-                Log.d(TAG,"onReceiveResult: geofences");
-                if (resultData!=null){
-                    Toast.makeText(MapsActivity.this, resultData.getString("error"), Toast.LENGTH_SHORT).show();
-                } else {
-                    shouldGeofence = true;
-                    switchGeofences.setChecked(true);
-                    getSharedPreferences("flags", MODE_PRIVATE).edit().putBoolean("shouldGeofence", shouldGeofence).apply();
-                }
-            }
-            else if (resultCode==105){
-                shouldGeofence = false;
-                switchGeofences.setChecked(false);
-            }
-            else{
-                Log.d(TAG,"onReceiveResult: Result Received "+resultCode);
-            }
-        }
-    }
-
-    // will be called when service is binded
-    private MyLocationService.MyBinder myBinder;
-    private ServiceConnection mServiceConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            Log.e(TAG, "onServiceDisconnected: Service has unexpectedly disconnected");
-            isServiceBound = false;
-            myBinder = null;
-        }
-
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            Log.d(TAG,"onServiceConnected");
-            myBinder = (MyLocationService.MyBinder) service;
-            //mBoundService = myBinder.getService();
-            isServiceBound = true;
-        }
-    };
 
     // creates geofences in mGeofenceList[Service] from hash_place_markers[Activity] which holds current filltered results
     protected boolean fillClientGeofences() {
@@ -1489,7 +1447,7 @@ implements OnMapReadyCallback
             String dummy = entry.getValue().getTitle()+"!"+entry.getKey();
             myBinder.getGeofenceList().add(new Geofence.Builder() //create Geofence
                     .setRequestId(dummy)
-                    .setCircularRegion(entry.getValue().getPosition().latitude, entry.getValue().getPosition().longitude, GEOFENCE_RADIUS)
+                    .setCircularRegion(entry.getValue().getPosition().latitude, entry.getValue().getPosition().longitude, Constants.GEOFENCE_RADIUS)
                     .setExpirationDuration(Constants.GEO_DURATION)
                     .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
                     .build());

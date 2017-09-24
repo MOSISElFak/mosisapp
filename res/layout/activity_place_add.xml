@@ -54,34 +54,6 @@
             android:layout_height="wrap_content"/>
     </LinearLayout>
 
-    <EditText
-        android:id="@+id/add_description_edit"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_margin="16dp"
-        android:layout_weight="0.1"
-        android:background="@color/Grey_700"
-        android:ems="10"
-        android:gravity="top|start"
-        android:hint="@string/add_label_Description"
-        android:inputType="text|textMultiLine"
-        android:lines="4"
-        android:maxLines="4"
-        android:padding="8dp"
-        android:textAlignment="gravity"/>
-
-    <RatingBar
-        android:id="@+id/add_layout_ratingBar"
-        style="@style/Widget.AppCompat.RatingBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_margin="8dp"
-        android:numStars="5"
-        android:progressTint="@color/Green_A700"
-        android:rating="0"
-        android:stepSize="1"/>
-
     <View
         android:layout_width="match_parent"
         android:layout_height="2dp"
