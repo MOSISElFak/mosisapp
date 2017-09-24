@@ -41,7 +41,7 @@ public class ScoreboardActivity extends AppCompatActivity
         {
             @Override
             public void onRefresh() {
-                Log.i(TAG, "onRefresh called from SwipeRefreshLayout");
+                Log.d(TAG, "onRefresh called from SwipeRefreshLayout");
                 updateScores();
             }
         });

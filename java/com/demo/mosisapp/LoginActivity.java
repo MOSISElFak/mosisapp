@@ -1,13 +1,18 @@
 package com.demo.mosisapp;
 
+import android.*;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 
 import android.os.Bundle;
@@ -45,6 +50,8 @@ import com.google.firebase.storage.UploadTask;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+
+import static com.demo.mosisapp.Constants.RC_CAMERA;
 
 /**
  * A login screen that offers login via email/password.
@@ -352,8 +359,25 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 resetPassword();
                 break;
             case(R.id.inner_logo):
+                checkCameraPermission();
                 takeMyPic();
                 break;
+        }
+    }
+
+    private void checkCameraPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {  // Only ask for these permissions on runtime when running Android 6.0 or higher
+            if (ContextCompat.checkSelfPermission(LoginActivity.this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(LoginActivity.this, new String[]{android.Manifest.permission.CAMERA}, Constants.RC_CAMERA);
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if(ActivityCompat.checkSelfPermission(this, permissions[0]) == PackageManager.PERMISSION_GRANTED && requestCode==Constants.RC_CAMERA){
+            takeMyPic();
         }
     }
 

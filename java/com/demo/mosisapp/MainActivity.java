@@ -1,9 +1,15 @@
 package com.demo.mosisapp;
 
+import android.*;
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -47,7 +53,7 @@ public class MainActivity extends AppCompatActivity
                     {
                         Log.d(TAG, "onAuthStateChanged: signed_in:" + user.getUid());
                         MosisApp.getInstance().logoutFlag = false;
-                        //Intent go = new Intent(MainActivity.this, MapsActivity.class);
+                        checkPermission();
                         Intent go = new Intent(MainActivity.this, MapsActivity.class);
                         go.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
                         startActivityForResult(go, RC_MAIN);
@@ -62,6 +68,28 @@ public class MainActivity extends AppCompatActivity
                     }
                 }
             };
+        }
+    }
+
+    private void checkPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {  // Only ask for these permissions on runtime when running Android 6.0 or higher
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, Constants.RC_LOCATION);
+            }
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if(requestCode==Constants.RC_LOCATION){
+            if (ActivityCompat.checkSelfPermission(this, permissions[0]) == PackageManager.PERMISSION_GRANTED){
+                Intent go = new Intent(MainActivity.this, MapsActivity.class);
+                go.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivityForResult(go, RC_MAIN);
+            }
+            Toast.makeText(getApplicationContext(), "Permission for location denied", Toast.LENGTH_SHORT).show();
+            finish(); // just leave
         }
     }
 
@@ -83,6 +111,7 @@ public class MainActivity extends AppCompatActivity
                 FirebaseAuth.getInstance().signOut();
             }
             finish();
+            return;
         }
     }
 

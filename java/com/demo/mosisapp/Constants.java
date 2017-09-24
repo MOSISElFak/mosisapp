@@ -36,6 +36,11 @@ public interface Constants
     String ATTRIBUTE = "attribute";
     String DATE = "date";
 
+    // Request codes
+    int RC_CAMERA = 22;
+    int RC_LOCATION = 23;
+    int RC_CHECK_LOCATION = 55;
+
     // Geofence constants
     public static final long GEO_DURATION = 5 * 60 * 1000; //in miliseconds
     public static final float GEOFENCE_RADIUS = 100.0f; // in meters

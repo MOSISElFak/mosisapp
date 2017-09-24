@@ -10,15 +10,22 @@
          ACCESS_FINE_LOCATION = closest 3 meters
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.BLUETOOTH"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+    <uses-permission android:name="android.permission.BLUETOOTH"/> <!-- ironically, this is declared as PROTECTION_NORMAL -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/> <!-- ironically, this is declared as PROTECTION_NORMAL -->
+
 
     <!-- needed -->
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.INTERNET"/> <!-- ironically, this is declared as PROTECTION_NORMAL -->
+
+
+    <!-- LoginActivity, register -->
+    <!-- MyProfileActivity -->
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
-        android:name="com.demo.mosisapp.MosisApp"
+        android:name=".MosisApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher_pretty"
         android:label="@string/app_name"
@@ -52,8 +59,7 @@
         </activity>
         <activity
             android:name=".LoginActivity"
-            android:label="@string/title_activity_login"
-            >
+            android:label="@string/title_activity_login">
         </activity>
         <activity
             android:name=".MapsActivity"
@@ -66,6 +72,9 @@
                 android:value="com.demo.mosisapp.MainActivity"/>
         </activity>
         <activity android:name=".MyProfileActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.demo.mosisapp.MapsActivity"/>
         </activity>
         <activity android:name=".BluetoothFriendActivity">
             <meta-data
@@ -82,23 +91,34 @@
                 android:value="com.demo.mosisapp.BluetoothFriendActivity"/>
         </activity>
         <activity android:name=".FriendsListActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.demo.mosisapp.MapsActivity"/>
         </activity>
         <activity
             android:name=".ProfileActivity"
             android:configChanges="orientation|keyboardHidden"
             android:label="@string/title_activity_profile"
             android:theme="@style/Theme.AppCompat.Dialog">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.demo.mosisapp.MapsActivity"/>
+        </activity>
+        <activity android:name=".PlaceAddActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.demo.mosisapp.MapsActivity"/>
+        </activity>
+        <activity
+            android:name=".ScoreboardActivity"
+            android:label="@string/title_activity_scoreboard"
+            android:parentActivityName=".MapsActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.demo.mosisapp.MapsActivity"/>
         </activity>
         <activity android:name=".TesterActivity">
-
-        </activity>
-
-        <service
-            android:name=".GeofenceIntentService"
-            android:exported="false">
-        </service>
-
-        <activity android:name=".PlaceAddActivity">
         </activity>
 
         <service
@@ -110,24 +130,28 @@
             </intent-filter>
         </service>
 
-        <activity
-            android:name=".ScoreboardActivity"
-            android:label="@string/title_activity_scoreboard"
-            android:parentActivityName=".MapsActivity"
-            android:theme="@style/Theme.AppCompat.NoActionBar">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.demo.mosisapp.MapsActivity"/>
-        </activity>
+        <service
+            android:name=".GeofenceIntentService"
+            android:exported="false">
+        </service>
 
         <service
             android:name=".MyLocationService"
             android:enabled="true"
             android:exported="false"
-            android:stopWithTask="false"
-            android:singleUser="true">
+            android:singleUser="true"
+            android:stopWithTask="false">
         </service>
 
+        <receiver
+            android:name=".MyGPSReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.location.MODE_CHANGED" />
+                <action android:name="android.location.PROVIDERS_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

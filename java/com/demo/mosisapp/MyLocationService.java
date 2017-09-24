@@ -6,6 +6,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -23,6 +24,7 @@ import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
@@ -30,6 +32,10 @@ import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResult;
+import com.google.android.gms.location.LocationSettingsStates;
+import com.google.android.gms.location.LocationSettingsStatusCodes;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DatabaseReference;
@@ -38,10 +44,12 @@ import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+import java.nio.BufferUnderflowException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE;
 import static com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES;
 import static com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_TOO_MANY_PENDING_INTENTS;
@@ -98,6 +106,12 @@ public class MyLocationService extends Service
         if (intent != null && intent.hasExtra("receiver")) {
             resultReceiver = intent.getParcelableExtra("receiver");
             Log.d(TAG, "got receiver");
+        }
+        else if (intent!=null && intent.hasExtra("broadcast")) {
+            Log.d(TAG, "from broadcast");
+            if (resultReceiver!=null){  // UI is connected
+                startLocationUpdates(); // this will call load geofences
+            }
         }
         else { // it was auto-reset
             shouldNotif = true;
@@ -207,7 +221,7 @@ public class MyLocationService extends Service
         // Begin polling for new location updates.
         startLocationUpdates();
         // Everytime the connection is re-established we need to re-register geofences
-        loadSavedGeofences();
+        //loadSavedGeofences();
     }
 
     @Override
@@ -243,10 +257,13 @@ public class MyLocationService extends Service
 
     protected LatLng getLastLocation(){
         //here you can get last known location
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "permission problem");
-            stopSelf();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {  // Only ask for these permissions on runtime when running Android 6.0 or higher{
+            if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+            {
+                Log.e(TAG, "permission problem");
+                //stopSelf();
+            }
         }
         Location mLastKnownLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         if (mLastKnownLocation!=null) {
@@ -255,21 +272,75 @@ public class MyLocationService extends Service
         return null;
     }
 
+    PendingResult<LocationSettingsResult> result;
+    LocationSettingsRequest.Builder builder;
+
     protected void startLocationUpdates() {
+        Log.d(TAG,"startLocationUpdates");
         // Create the location request
-        mLocationRequest = LocationRequest.create()
-                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                //.setSmallestDisplacement(0.1f)      //  Set the minimum displacement between location updates in meters (tryout)
-                .setInterval(UPDATE_INTERVAL)       // GoogleDoc: 5 seconds would be appropriate for realtime
-                .setFastestInterval(FASTEST_INTERVAL);
-        // Request location updates
-        try {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this); //calls onLocationChanged
-        } catch (SecurityException se) {
-            Log.e("DEBUG", "startLocationUpdates: " + se.getMessage());
-            se.printStackTrace();
-            Log.e(TAG, "Maybe ask for permission?");
+        if (mLocationRequest==null) {
+            Log.d(TAG,"new mLocationRequest");
+            mLocationRequest = LocationRequest.create()
+                    .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                    //.setSmallestDisplacement(0.1f)      //  Set the minimum displacement between location updates in meters (tryout)
+                    .setInterval(UPDATE_INTERVAL)       // GoogleDoc: 5 seconds would be appropriate for realtime
+                    .setFastestInterval(FASTEST_INTERVAL);
         }
+        if (builder==null) {
+            Log.d(TAG,"new builder");
+            builder = new LocationSettingsRequest.Builder()
+                    .addLocationRequest(mLocationRequest)
+                    .setAlwaysShow(true);
+        }
+
+        result = LocationServices.SettingsApi.checkLocationSettings(mGoogleApiClient, builder.build());
+        result.setResultCallback(new ResultCallback<LocationSettingsResult>()
+        {
+            @Override
+            public void onResult(@NonNull LocationSettingsResult locationResult) {
+                Log.d(TAG, "result: onResult");
+                final Status status = locationResult.getStatus();
+                final LocationSettingsStates state = locationResult.getLocationSettingsStates();
+                switch (status.getStatusCode()) {
+                    case LocationSettingsStatusCodes.SUCCESS:
+                        // All location settings are satisfied. The client can initialize location
+                        // requests here.
+                        // Request location updates
+                        try {
+                            Log.d(TAG, "result: onResult LocationSettingsStatusCodes.SUCCESS");
+                            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, MyLocationService.this); //calls onLocationChanged
+                            loadSavedGeofences(); // if location was off/on we need to re-register geofences
+                        } catch (SecurityException se) {
+                            Log.e(TAG, "startLocationUpdates: " + se.getMessage());
+                            se.printStackTrace();
+                            Log.e(TAG, "Maybe ask for permission?");
+                        }
+                        break;
+                    case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
+                        Log.d(TAG, "result: onResult LocationSettingsStatusCodes.RESOLUTION_REQUIRED");
+                        // Location settings are not satisfied. But could be fixed by showing the user
+                        // a dialog.
+
+                        // Show the dialog by calling startResolutionForResult(),
+                        // and check the result in onActivityResult().
+                        //PendingIntent pi = status.getResolution();
+
+                        if (resultReceiver!=null){
+                            Bundle b = new Bundle();
+                            b.putParcelable("resolution",status);
+                            resultReceiver.send(106,b);
+                            Log.d(TAG,"sent forResolution");
+                        }
+                        break;
+                    case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
+                        // Location settings are not satisfied. However, we have no way to fix the
+                        // settings so we won't show the dialog.
+                        Log.d(TAG, "result: onResult LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE");
+                        Log.e(TAG,"Probably dismissed with DONT NOTIFY AGAIN");
+                        break;
+                }
+            }
+        });
     }
 
     @Override
@@ -371,7 +442,7 @@ public class MyLocationService extends Service
         if (data.contains("fences")){
             Log.d(TAG, "deleteSavedGeofences: fences found");
             data.edit().clear().commit(); // it has to be commit
-            getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("shouldGeofence",false).apply();
+            getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("shouldGeofence",false).commit();
             if (resultReceiver!=null){
                 resultReceiver.send(105,null);
             }

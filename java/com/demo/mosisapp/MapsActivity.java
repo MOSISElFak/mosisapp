@@ -2,15 +2,18 @@ package com.demo.mosisapp;
 
 import android.app.Activity;
 import android.app.DatePickerDialog;
+import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.NonNull;
@@ -42,6 +45,8 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.SimpleTarget;
 import com.bumptech.glide.request.transition.Transition;
+import com.google.android.gms.common.api.PendingResult;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.Circle;
@@ -77,6 +82,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+
+import static com.demo.mosisapp.Constants.RC_CHECK_LOCATION;
 
 //setPersistanceEnabled(true) only caches data when there is a Listener attached to that node (when the data has been read at least once).
 //keepSynced(true) caches everything from that node, even if there is no listener attached.
@@ -117,7 +124,7 @@ implements OnMapReadyCallback
     private ChildEventListener mChildEventListenerLocations;
     private ValueEventListener mValueEventListenerFilters;
     private ChildEventListener mChildEventListenerALLUsers;
-
+    private String myID;
     private List<String> friends;   //used for removing listeners on friends
 
     RequestOptions requestOptions;
@@ -166,7 +173,7 @@ implements OnMapReadyCallback
         refMyFriends = mFirebaseDatabase.getReference().child(Constants.FRIENDS).child(FirebaseAuth.getInstance().getCurrentUser().getUid());
         refUsers = mFirebaseDatabase.getReference().child(Constants.USERS);
         refPlaces = mFirebaseDatabase.getReference().child(Constants.READPLACE);
-
+        myID = FirebaseAuth.getInstance().getCurrentUser().getUid();
         refFilterResults = FirebaseDatabase.getInstance().getReference().child("filter/results").child(FirebaseAuth.getInstance().getCurrentUser().getUid());
 
         fab_main = (FloatingActionButton) findViewById(R.id.fab_main);
@@ -427,10 +434,11 @@ implements OnMapReadyCallback
                 .putBoolean("shouldStop",shouldStop)
                 .putBoolean("useRadius",useRadius)
                 .apply();
-
-        //TODO: remove my marker?
-
-        saveGeofenceData();
+        if (myMarker!=null){
+            myMarker.remove();
+            myMarker = null;
+        }
+        //saveGeofenceData();
         unbindFromService();
         detachDatabaseReadListener();
     }
@@ -662,6 +670,23 @@ implements OnMapReadyCallback
         }
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == RC_CHECK_LOCATION){
+            if (resultCode == Activity.RESULT_OK){
+                // All required changes were successfully made
+                Toast.makeText(this, "RC_CHECK_LOCATION: OK", Toast.LENGTH_SHORT).show();
+            } else {
+                // The user was asked to change settings, but chose not to
+                // If user stays in Activity, his location will be incorrect, but will see others
+                Toast.makeText(this, "RC_CHECK_LOCATION: CANCEL", Toast.LENGTH_SHORT).show();
+                shouldStop = true;
+                MapsActivity.this.finish(); // After "finish" MAKE SURE TO CALL RETURN EVEN ON VOID! 2591840
+                return; //ZIVOTE
+            }
+        }
+    }
+
     private void stopLocationService() {
         Log.d(TAG,"stopLocationService");
         if (isServiceBound) unbindFromService();
@@ -681,6 +706,7 @@ implements OnMapReadyCallback
                 Log.d(TAG,"onReceiveResult: connected!");
                 if (resultData!=null && resultData.containsKey("loc")) {
                     mLastKnownLocation = resultData.getParcelable("loc");
+                    Toast.makeText(MapsActivity.this, "Got last known location!", Toast.LENGTH_SHORT).show();
                     Log.d(TAG, "onReceiveResult: we got the last known location");
                 }
                 onGACConnected(); //loads map
@@ -695,6 +721,7 @@ implements OnMapReadyCallback
             }
             else if(resultCode==103){
                 Log.d(TAG,"onReceiveResult: location updated");
+                Toast.makeText(MapsActivity.this, "New Location!", Toast.LENGTH_SHORT).show();
                 if (resultData!=null){
                     newLocationChanged(resultData.getDouble("loc_lat"),resultData.getDouble("loc_lon"));
                 }
@@ -712,6 +739,22 @@ implements OnMapReadyCallback
             else if (resultCode==105){
                 shouldGeofence = false;
                 switchGeofences.setChecked(false);
+            }
+            else if (resultCode==106){
+                Log.d(TAG, "resultReceiver: resolution");
+                if (resultData.containsKey("resolution")){
+                    Log.d(TAG, "contains key: resolution");
+                    Toast.makeText(MapsActivity.this, "RESOLUTION", Toast.LENGTH_SHORT).show();
+                    Status pi = (Status) resultData.get("resolution");
+                    try {
+                        if (pi != null) {
+                            pi.startResolutionForResult(MapsActivity.this,RC_CHECK_LOCATION);
+                        }
+                    } catch ( IntentSender.SendIntentException e ) {
+                        Log.e(TAG,"SendIntentException");
+                        e.printStackTrace();
+                    }
+                }
             }
             else{
                 Log.d(TAG,"onReceiveResult: Result Received "+resultCode);
@@ -840,8 +883,8 @@ implements OnMapReadyCallback
                     Log.d("friends: onChildAdded", dataSnapshot.getKey());
                     // KEY(uid):VALUE(true|false)
                     final String id = dataSnapshot.getKey(); //gets friends uid and
+                    if (id.equals(myID)) return; //skip me
                     friends.add(id);
-                    // maybe cache images here
                     refLocation.child(id).addChildEventListener(mChildEventListenerLocations);
                 }
 
@@ -1348,12 +1391,12 @@ implements OnMapReadyCallback
         }
 
         //findViewById(R.id.map).setVisibility(View.VISIBLE);
-        mMap.setMyLocationEnabled(true); // shows realtime blue dot (me) on map
-        //mMap.getUiSettings().setMyLocationButtonEnabled(true); // ze button
-        mMap.getUiSettings().setZoomControlsEnabled(true);
+        //mMap.setMyLocationEnabled(true); // shows realtime blue dot (me) on map
+        mMap.getUiSettings().setMyLocationButtonEnabled(true); // ze button
+        //mMap.getUiSettings().setZoomControlsEnabled(true);
         mMap.setMaxZoomPreference(20);
         mMap.setMinZoomPreference(14);
-        mMap.setLatLngBoundsForCameraTarget(MUNICH);
+        //mMap.setLatLngBoundsForCameraTarget(MUNICH);
 
         if (mLastKnownLocation != null) {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mLastKnownLocation, DEFAULT_ZOOM));
@@ -1385,8 +1428,7 @@ implements OnMapReadyCallback
 
     @Override
     public void onMapLongClick(LatLng latLng) {
-        //float distanceInMeters =  targetLocation.distanceTo(myLocation);
-        Toast.makeText(this, latLng.latitude + ": "+latLng.longitude, Toast.LENGTH_SHORT).show();
+        Log.d(TAG, latLng.latitude + ": "+latLng.longitude);
     }
 
     /**
@@ -1401,11 +1443,10 @@ implements OnMapReadyCallback
     public void newLocationChanged(Double lat, Double lon) {
         // You can now create a LatLng Object for use with maps
         mLastKnownLocation = new LatLng(lat, lon);
-        if (mMap!=null && mapOnline) {
+        if (mMap!=null) {
             mMap.moveCamera(CameraUpdateFactory.newLatLng(mLastKnownLocation));
             if (myMarker==null) myMarker = createMyMarker();
             else myMarker.setPosition(mLastKnownLocation);
-
         }
     }
 
@@ -1420,11 +1461,12 @@ implements OnMapReadyCallback
     //</editor-fold>
 
     public void checkLocationPermission() {
-        if (ContextCompat.checkSelfPermission(MapsActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-        {
-            ActivityCompat.requestPermissions(MapsActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
-        } else {
-            mLocationPermissionGranted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {  // Only ask for these permissions on runtime when running Android 6.0 or higher
+            if (ContextCompat.checkSelfPermission(MapsActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MapsActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+            } else {
+                mLocationPermissionGranted = true;
+            }
         }
     }
 
