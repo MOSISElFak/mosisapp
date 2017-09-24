@@ -9,6 +9,7 @@ public class MosisApp extends Application
 {
     private static final MosisApp ourInstance = new MosisApp();
     protected boolean logoutFlag = false;
+    protected int RC_NOTIFICATIONS = 70;
 
     public static MosisApp getInstance() {
         return ourInstance;
@@ -31,5 +32,10 @@ public class MosisApp extends Application
         //only caches data when there is a Listener attached to that node (when the data has been read at least once).
         if (!FirebaseApp.getApps(this).isEmpty())
             FirebaseDatabase.getInstance().setPersistenceEnabled(true);
+    }
+
+    public int getNotifRC(){
+        RC_NOTIFICATIONS++;
+        return RC_NOTIFICATIONS;
     }
 }

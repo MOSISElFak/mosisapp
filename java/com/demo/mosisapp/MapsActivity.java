@@ -1,34 +1,42 @@
 package com.demo.mosisapp;
 
-import android.app.ActivityManager;
+import android.app.Activity;
 import android.app.DatePickerDialog;
-import android.app.PendingIntent;
-import android.app.TimePickerDialog;
-import android.content.Context;
+import android.content.ComponentName;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.location.Location;
+import android.os.Handler;
+import android.os.IBinder;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.os.ResultReceiver;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.DatePicker;
-import android.widget.TimePicker;
+import android.widget.NumberPicker;
+import android.widget.Spinner;
+import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
@@ -37,19 +45,11 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.SimpleTarget;
 import com.bumptech.glide.request.transition.Transition;
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
-import com.google.android.gms.location.GeofencingRequest;
-import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -70,7 +70,9 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.gson.Gson;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -79,9 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-import static com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE;
-import static com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES;
-import static com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_TOO_MANY_PENDING_INTENTS;
+import static com.demo.mosisapp.Constants.GEOFENCE_RADIUS;
 
 /* (Notes from Google) @SuppressWarnings("MissingPermission") try @SuppressWarnings({"ResourceType"}) or //noinspection MissingPermission
  * Note: If you're using the v7 appcompat library, your activity should instead extend AppCompatActivity, which is a subclass of FragmentActivity. (For more information, read Adding the App Bar)
@@ -92,39 +92,35 @@ import static com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_TOO_M
  */
 //setPersistanceEnabled(true) only caches data when there is a Listener attached to that node (when the data has been read at least once).
 //keepSynced(true) caches everything from that node, even if there is no listener attached.
-//public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback
-        , GoogleApiClient.ConnectionCallbacks
-        , GoogleApiClient.OnConnectionFailedListener
-        , LocationListener
-        , ResultCallback<Status>
+//The android geofences get removed every time you reboot your device or every time you toggle the location mode
+// Note: Markers can not be "re-added" after calling marker.remove(), so there is no way to "hide" them except deletion.
+
+public class MapsActivity extends AppCompatActivity
+implements OnMapReadyCallback
         ,GoogleMap.OnMapLongClickListener
+        ,GoogleMap.OnMarkerClickListener, View.OnClickListener
 {
+
     private final String TAG = "MapsActivity";
 
     private boolean isGeoActive = false;
-    private boolean mLocationUpdated = false; //flag for add places, as to get location
     private boolean mLocationPermissionGranted = true;
-    private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION= 1;
+    private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
+    private final int RC_SCOREBOARD = 321;
     //location access
-    private GoogleApiClient mGoogleApiClient;
-    private LocationRequest mLocationRequest;
-    private Location mLastKnownLocation;
-    private int DEFAULT_ZOOM = 15;
-    private LatLng thisMe;
-    //private Location mCurrentLocation;
-    private static final long UPDATE_INTERVAL = 20 * 1000;  //20 seconds in milliseconds, inexact //3min?
-    private static final long FASTEST_INTERVAL = 10 * 1000; //10sec, update_interval/2, exact     //30sec?
 
+    private int DEFAULT_ZOOM = 15;
     private final LatLng mDefaultLocation = new LatLng(48.137154, 11.576124); //maps could have default locations based on regions
-    private LatLngBounds MUNICH = new LatLngBounds(new LatLng(48.047983,11.363986),new LatLng(48.249102,11.756060));
+    private LatLngBounds MUNICH = new LatLngBounds(new LatLng(48.047983, 11.363986), new LatLng(48.249102, 11.756060));
 
     private GoogleMap mMap;
+
     private Marker myMarker;
+    private LatLng mLastKnownLocation;
+    private boolean mapOnline = false;
 
     //RealtimeDB
     private FirebaseDatabase mFirebaseDatabase;         //main access point
-    private DatabaseReference refMyLocation;
     private DatabaseReference refLocation;
     private DatabaseReference refMyFriends;
     private DatabaseReference refUsers;
@@ -143,72 +139,60 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // Markers
     private HashMap<Marker, String> hash_marker_id;       // for identifying marker when clicked from map
     private WeakHashMap<String, Marker> hashWeak_id_marker;   // for identifying which marker to update with new location (weak, because it only keeps references)
-
-    // Geofences
-    private static final long GEO_DURATION = 2 * 60 * 1000; //in miliseconds
-    private static final String GEOFENCE_REQ_ID = "My Geofence";
-    private static final int GEOFENCE_REQ_CODE = 16;
-    private static final float GEOFENCE_RADIUS = 100.0f; // in meters
-
-    // UDACITY KURS
-    protected ArrayList<Geofence> mGeofenceList;
-
+    private HashMap<String, Marker> hash_id_marker_users;
     //Places
     private DatabaseReference refPlaces;
     private HashMap<String, Marker> hash_place_markers;     //pushKey => Marker
-    private HashMap<String, LatLng> hash_active_geofences;  //geoKey => position
     private HashMap<String, Circle> hash_circles;           //geoKey => Circle
-    private int GEOFENCES_LIMIT = 50;                       //safeguard
-    FloatingActionButton fab;
+    FloatingActionButton fab_main, fab1, fab2, fab3, fab_type, fab_date;
+    boolean isOpenFabMain = false;
+    boolean isOpenFabSearch = false;
 
-    private PendingIntent geoFencePendingIntent;
+    //service
+    protected MyResultReceiver resultReceiver;              //listener for SERVICE->CLIENT events
+    private boolean isServiceBound = false;                 //flag for bound to service
+
+    private static final String KEY_CAMERA_POSITION = "camera_position";
+    private static final String KEY_LOCATION = "camera_location";
+
+    private DrawerLayout mDrawerLayout;
+    private Switch switchGeofences, switchUserfences, switchPeople, switchOnline, switchRadius;
+
+    private int flagRadius = 0;
+    private boolean useRadius = false;
+    private boolean shouldStop = false;                     //option for stoping background service
+    private boolean shouldGeofence = false;
+    private boolean shouldUserfence = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar_easy);
-        setSupportActionBar(toolbar);
+        Log.d(TAG,"onCreate");
 
-        fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener()
-        {
-            @Override
-            public void onClick(View view) {
-                AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
-                LayoutInflater inflater = getLayoutInflater();
-                builder.setView(inflater.inflate(R.layout.filter_layout, null))
-                        //Alternatively, you can specify a list using setAdapter(). This allows you to back the list with dynamic data (such as from a database) using a ListAdapter
-                        .setItems(R.array.add_type_spinner_array, new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int index) {
-                                String type = getResources().getStringArray(R.array.add_type_spinner_array)[index];
-                                Toast.makeText(MapsActivity.this, "Type: "+type, Toast.LENGTH_SHORT).show();
-                                searchMapTypeClient(index, type);
-                           }
-                        })
-                        .setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int id) {
-                            }
-                        })
-                        .setNegativeButton("Cancel", null)
-                        .create()
-                        .show();
-            }
-        });
+        fab_main = (FloatingActionButton) findViewById(R.id.fab_main);
+        fab1 = (FloatingActionButton)findViewById(R.id.fab1);   //search fab
+        fab2 = (FloatingActionButton)findViewById(R.id.fab2);
+        fab3 = (FloatingActionButton)findViewById(R.id.fab3);
+        fab_type = (FloatingActionButton)findViewById(R.id.fab2_type);
+        fab_date = (FloatingActionButton)findViewById(R.id.fab3_date);
+
+        fab_main.setOnClickListener(this);
+        fab1.setOnClickListener(this); //Search FAB
+        fab2.setOnClickListener(this);
+        fab3.setOnClickListener(this);
+        fab_type.setOnClickListener(this);
+        fab_date.setOnClickListener(this);
 
         // Initializations
         friends = new ArrayList<>();
         hash_marker_id = new HashMap<>();
         hashWeak_id_marker = new WeakHashMap<>();
         hash_place_markers = new HashMap<>();
-        hash_active_geofences = new HashMap<>();
         hash_circles = new HashMap<>();
 
         // Initialize RealtimeDB
         mFirebaseDatabase = FirebaseDatabase.getInstance();
-        refMyLocation = mFirebaseDatabase.getReference().child(Constants.LOCATIONS).child(FirebaseAuth.getInstance().getCurrentUser().getUid());
         refLocation = mFirebaseDatabase.getReference().child(Constants.LOCATIONS);
         refMyFriends = mFirebaseDatabase.getReference().child(Constants.FRIENDS).child(FirebaseAuth.getInstance().getCurrentUser().getUid());
         refUsers = mFirebaseDatabase.getReference().child(Constants.USERS);
@@ -216,22 +200,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         refFilterResults = FirebaseDatabase.getInstance().getReference().child("filter/results").child(FirebaseAuth.getInstance().getCurrentUser().getUid());
 
-        //Your GoogleApiClient instance will automatically connect after your activity calls onStart() and disconnect after calling onStop()
-        //mGoogleApiClient = new GoogleApiClient.Builder(MapsActivity.this)
-        //        .addApi(LocationServices.API)
-        //        .addConnectionCallbacks(this)
-        //        .addOnConnectionFailedListener(this)
-        //        .build();
-        /**
-         * Connects the client to Google Play services. This method returns immediately, and connects to the service in the background.
-         * If the connection is successful, onConnected(Bundle) is called and enqueued items are executed.
-         * On a failure, onConnectionFailed(ConnectionResult) is called.
-         * If the client is already connected or connecting, this method does nothing.
-         */
-        //mGoogleApiClient.connect(); //calls onConnected when ready
-        buildGoogleApiClient();
-
-        requestOptions = new RequestOptions()
+        requestOptions = new RequestOptions()                               // GLIDE options for friends icons
                 .diskCacheStrategy(DiskCacheStrategy.ALL)                   //DATA(original),RESOURCE(after transformations)
                 .placeholder(R.drawable.ic_action_marker_person_color)      //default icon before loading
                 .fallback(R.drawable.ic_action_marker_person_color)         //default icon in case of null
@@ -240,63 +209,417 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .circleCrop()
                 .override(50, 50);
 
-        // Empty list for storing geofences.
-        mGeofenceList = new ArrayList<Geofence>();
 
-        // Get the geofences used. Geofence data is hard coded in this sample.
-        //populateGeofenceList();
+        mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
+        initializeDrawer();
     }
 
-    protected synchronized void buildGoogleApiClient() {
-        mGoogleApiClient = new GoogleApiClient.Builder(MapsActivity.this)
-                .addApi(LocationServices.API)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .build();
+    private void initializeDrawer() {
+        // TextViews
+        findViewById(R.id.drawer_textview_profile).setOnClickListener(this);
+        findViewById(R.id.drawer_textview_score).setOnClickListener(this);
+        findViewById(R.id.drawer_textview_logout).setOnClickListener(this);
+
+        shouldUserfence = getSharedPreferences("flags",MODE_PRIVATE).getBoolean("shouldUserfence",false);
+        shouldStop = getSharedPreferences("flags",MODE_PRIVATE).getBoolean("shouldStop",false);
+        shouldGeofence = getSharedPreferences("flags", MODE_PRIVATE).getBoolean("shouldGeofence",false);
+        useRadius = getSharedPreferences("flags",MODE_PRIVATE).getBoolean("useRadius",false);
+        flagRadius = getSharedPreferences("flags",MODE_PRIVATE).getInt("flagRadius",1000);
+
+        //Switches
+        switchUserfences = (Switch)findViewById(R.id.switch_userfences);
+        switchGeofences = (Switch)findViewById(R.id.switch_geofences);
+        switchPeople = (Switch)findViewById(R.id.switch_people);
+        switchOnline = (Switch)findViewById(R.id.switch_online);
+        switchRadius = (Switch)findViewById(R.id.switch_radius);
+
+        switchUserfences.setChecked(shouldUserfence);
+        switchGeofences.setChecked(shouldGeofence);
+        switchOnline.setChecked(!shouldStop);
+        switchRadius.setChecked(useRadius);
+        switchPeople.setChecked(false);
+
+        switchUserfences.setOnClickListener(this);
+        switchGeofences.setOnClickListener(this);
+        switchGeofences.setOnClickListener(this);
+        switchPeople.setOnClickListener(this);
+        switchOnline.setOnClickListener(this);
+        switchRadius.setOnClickListener(this);
+    }
+
+    private void animateSearchFabs() {
+        if (isOpenFabSearch){
+            Log.d(TAG, "closing search fab");
+            animateCloseSearch();
+        } else {
+            Log.d(TAG, "opening search fab");
+            animateOpenSearch();
+        }
+    }
+
+    private void animateMainFabs() {
+    if (isOpenFabMain){
+        if (isOpenFabSearch) {
+            animateCloseSearch();
+        }
+        Log.d(TAG, "closing -->");
+        animateClose();
+    }
+    else{
+        Log.d(TAG, "<-- opening");
+        animateOpen();
+    }
+}
+
+    private void animateCloseSearch() {
+        final Animation popOut2 = new AlphaAnimation(1f,0f);
+        popOut2.setFillAfter(false);
+        popOut2.setDuration(200);
+        final Animation popOut3 = new AlphaAnimation(1f,0f);
+        popOut3.setFillAfter(false);
+        popOut3.setDuration(100);
+
+        fab_date.startAnimation(popOut3);
+        findViewById(R.id.fab3_date_label).setVisibility(View.INVISIBLE);
+        fab_date.setVisibility(View.INVISIBLE);
+        fab3.setVisibility(View.VISIBLE);
+
+        fab_type.startAnimation(popOut2);
+        findViewById(R.id.fab2_type_label).setVisibility(View.INVISIBLE);
+        fab_type.setVisibility(View.INVISIBLE);
+        fab2.setVisibility(View.VISIBLE);
+
+        isOpenFabSearch=false;
+    }
+
+    private void animateOpenSearch() {
+        final Animation popUp1 = new AlphaAnimation(0f,1f);
+        popUp1.setFillAfter(true);
+        popUp1.setDuration(100);
+        final Animation popUp2 = new AlphaAnimation(0f,1f);
+        popUp2.setFillAfter(true);
+        popUp2.setDuration(200);
+
+        fab_type.startAnimation(popUp1);
+        fab_type.setVisibility(View.VISIBLE);
+        findViewById(R.id.fab2_type_label).setVisibility(View.VISIBLE);
+        fab2.setVisibility(View.INVISIBLE);
+
+        fab_date.startAnimation(popUp2);
+        fab_date.setVisibility(View.VISIBLE);
+        findViewById(R.id.fab3_date_label).setVisibility(View.VISIBLE);
+        fab3.setVisibility(View.INVISIBLE);
+        isOpenFabSearch=true;
+    }
+
+    private void animateOpen() {
+        final Animation popUp1 = new AlphaAnimation(0f,1f);
+        popUp1.setFillAfter(true);
+        popUp1.setDuration(400);
+        final Animation popUp2 = new AlphaAnimation(0f,1f);
+        popUp2.setFillAfter(true);
+        popUp2.setDuration(400);
+        popUp2.setStartOffset(200);
+        final Animation popUp3 = new AlphaAnimation(0f,1f);
+        popUp3.setFillAfter(true);
+        popUp3.setDuration(400);
+        popUp3.setStartOffset(400);
+
+        fab_main.animate().rotation(-45.0f);
+        fab1.startAnimation(popUp1);
+        fab1.setVisibility(View.VISIBLE);
+        fab2.startAnimation(popUp2);
+        fab2.setVisibility(View.VISIBLE);
+        fab3.startAnimation(popUp3);
+        fab3.setVisibility(View.VISIBLE);
+
+        isOpenFabMain = true;
+    }
+
+    private void animateClose() {
+        final Animation popOut3 = new AlphaAnimation(1f,0f);
+        popOut3.setFillAfter(false);
+        popOut3.setDuration(300);
+
+        final Animation popOut2 = new AlphaAnimation(1f,0f);
+        popOut2.setFillAfter(false);
+        popOut2.setDuration(300);
+        popOut2.setStartOffset(100);
+
+        final Animation popOut1 = new AlphaAnimation(1f,0f);
+        popOut1.setFillAfter(false);
+        popOut1.setDuration(300);
+        popOut1.setStartOffset(200);
+
+        fab_main.animate().rotation(0);
+        fab3.startAnimation(popOut3);
+        fab3.setVisibility(View.INVISIBLE);
+        fab2.startAnimation(popOut2);
+        fab2.setVisibility(View.INVISIBLE);
+        fab1.startAnimation(popOut1);
+        fab1.setVisibility(View.INVISIBLE);
+
+        isOpenFabMain =false;
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        //Connect the client
-        if (!mGoogleApiClient.isConnecting() || !mGoogleApiClient.isConnected()) {
-            mGoogleApiClient.connect(); //calls onConnected when ready
-        }
-    }
-
-    @Override
-    protected void onStop() {
-        //Disconnect the client
-        if (mGoogleApiClient.isConnecting() || mGoogleApiClient.isConnected()) {
-            mGoogleApiClient.disconnect();
-        }
-        super.onStop();
+        Log.d(TAG,"onStart");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        try {
-           // if (mGoogleApiClient.isConnected()) startLocationUpdates();
-        } catch (SecurityException se) {
-            Toast.makeText(this, "removeLocationUpdates", Toast.LENGTH_SHORT).show();
-            se.printStackTrace();
-        }
+        Log.d(TAG,"onResume");
+
+        // In case it gets changed
+        SharedPreferences data = getSharedPreferences("basic", MODE_PRIVATE);
+        TextView username = (TextView)findViewById(R.id.drawer_username);
+        username.setText(data.getString("username","Unknown"));
+
+        startLocationService(); // startService: [onCreate][onStartCommand]
+        bindToService();        // bindService  [onBind] BECAUSE YOU NEED TO REMOVE THE RECEIVER WHEN YOU STOP ACTIVITY
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        try {//java.lang.RuntimeException: Unable to pause activity {com.demo.mosisapp/com.demo.mosisapp.MapsActivity}: java.lang.IllegalStateException: GoogleApiClient is not connected yet.
-            if (mGoogleApiClient.isConnected())
-                LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
-        } catch (SecurityException se) {
-            Toast.makeText(this, "removeLocationUpdates", Toast.LENGTH_SHORT).show();
-            se.printStackTrace();
-        }
-        //mGoogleApiClient.disconnect();
+        Log.d(TAG,"onPause");
+        getSharedPreferences("flags",MODE_PRIVATE).edit()
+                .putInt("flagRadius",flagRadius)
+                .putBoolean("shouldStop",shouldStop)
+                .putBoolean("useRadius",useRadius)
+                .apply();
+
+        //TODO: remove my marker?
+
+        saveGeofenceData();
+        unbindFromService();
         detachDatabaseReadListener();
     }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d(TAG,"onStop");
+        if (shouldStop) {
+            Log.d(TAG, "onStop: should stop the service");
+            stopLocationService();
+        }
+        if (mChildEventListenerFriends != null) mChildEventListenerFriends = null;
+    }
+
+    @Override
+    public void onBackPressed() {
+        moveTaskToBack(true);
+    }
+
+    @Override
+    public void onClick(View v)
+    {
+        switch(v.getId()){
+            case R.id.drawer_textview_profile:      //View My Profile
+                Log.d(TAG, "onClick: View My Profile");
+                mDrawerLayout.closeDrawers();
+                Intent mine = new Intent(MapsActivity.this, MyProfileActivity.class);
+                startActivity(mine);
+                break;
+            case R.id.drawer_textview_score:        //Show Scoreboard
+                Log.d(TAG, "onClick: Show Scoreboard");
+                mDrawerLayout.closeDrawers();
+                Intent board = new Intent(this,ScoreboardActivity.class);
+                startActivityForResult(board, RC_SCOREBOARD);
+                break;
+            case R.id.drawer_textview_logout:       //Log out
+                Log.d(TAG, "onClick: Log out");
+                MosisApp.getInstance().logoutFlag = true;
+                mDrawerLayout.closeDrawers();
+                MapsActivity.this.finish();
+                break;
+            case R.id.switch_geofences:               //Switches
+                Log.d(TAG, "onClick: switch_geofences");
+                if (switchGeofences.isChecked()){
+                    if (hash_place_markers == null || hash_place_markers.isEmpty()) {
+                        Toast.makeText(MapsActivity.this, "Select some places first", Toast.LENGTH_SHORT).show();
+                        switchGeofences.setChecked(false);
+                    } else {
+                        mDrawerLayout.closeDrawers();
+                        askGeofencingDialog();
+                    }
+                } else {
+                    shouldGeofence = false;
+                    if (isServiceBound){
+                        myBinder.stopGeofencing();
+                    }
+                }
+                break;
+            case R.id.switch_userfences:
+                Log.d(TAG, "onClick: switch_userfences");
+                if (switchUserfences.isChecked()){
+                    Log.d(TAG, "subscribed to close users");
+                    shouldUserfence = true;
+                    FirebaseMessaging.getInstance().subscribeToTopic("close"); //gets notification from CloudFunction, about user close by
+                } else {
+                    Log.d(TAG, "unsubscribed from close users");
+                    shouldUserfence = false;
+                    FirebaseMessaging.getInstance().unsubscribeFromTopic("close"); //gets notification from CloudFunction, about user close by
+                }
+                getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("shouldUserfence",shouldUserfence).commit();
+                break;
+            case R.id.switch_people:
+                Log.d(TAG, "onClick: switch_people");
+                if (switchPeople.isChecked()){
+                    Log.d(TAG,"showing all users");
+                    showAllUsers();
+                } else {
+                    Log.d(TAG,"removing users");
+                    removeAllUsers();
+                }
+                mDrawerLayout.closeDrawers();
+                break;
+            case R.id.switch_online:
+                Log.d(TAG, "onClick: switch_online");
+                shouldStop = !switchOnline.isChecked();
+                Log.d(TAG, "shouldStop="+shouldStop);
+                getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("shouldStop",shouldStop).commit();
+                break;
+            case R.id.switch_radius:
+                Log.d(TAG, "onClick: switch_radius");
+                if (switchRadius.isChecked()){
+                    mDrawerLayout.closeDrawers();
+                    askRadiusDialog();
+                } else {
+                    useRadius=false;
+                    getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("useRadius",useRadius).commit();
+                }
+                break;
+            case R.id.fab_main:
+                animateMainFabs();
+                break;
+            case R.id.fab1:
+                animateSearchFabs();
+                break;
+            case R.id.fab3:                         //FAB - Add person
+                Log.d(TAG, "onClick: fab3 - add person");
+                Intent addFriend = new Intent(this, BluetoothFriendActivity.class);
+                startActivity(addFriend);
+                break;
+            case R.id.fab2:                         //FAB - Add place
+                Log.d(TAG, "onClick: fab2 - add place");
+                if (mLastKnownLocation != null) {
+                    Intent addPlace = new Intent(this, PlaceAddActivity.class);
+                    addPlace.putExtra("place_lat", mLastKnownLocation.latitude);
+                    addPlace.putExtra("place_lon", mLastKnownLocation.longitude);
+                    startActivity(addPlace);
+                } else
+                    Toast.makeText(this, "PlaceAdd not ready", Toast.LENGTH_SHORT).show();
+                break;
+            case R.id.fab2_type:                         //FAB - Search places
+                Log.d(TAG, "onClick: fab2_type");
+                animateMainFabs();
+                searchDialog();
+                break;
+            case R.id.fab3_date:
+                Log.d(TAG, "onClick: fab3_date");
+                animateMainFabs();
+                searchDate();
+                break;
+        }
+    }
+
+    private void askGeofencingDialog() {
+        Log.d(TAG, "askGeofencingDialog");
+        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+        builder.setTitle("Place Notifications");
+        builder.setMessage("Turn on notifications when you are near selected places?");
+        builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Log.d(TAG, "askGeofencingDialog: OK");
+                startGeofencing();
+            }
+        }).setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Log.d(TAG, "askGeofencingDialog: CANCEL");
+                shouldGeofence = false;
+                switchGeofences.setChecked(false);
+            }
+        }).show();
+    }
+
+    private void askRadiusDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+        builder.setTitle("Select Radius");
+        //builder.setView(R.layout.dialog_radius);
+        final View ad = getLayoutInflater().inflate(R.layout.dialog_radius, null);
+        final NumberPicker np = (NumberPicker)ad.findViewById(R.id.radius_picker);
+        np.setMaxValue(10);//10km
+        np.setMinValue(1); //1km
+        builder.setView(ad);
+        builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Log.d(TAG, "onClick: OK "+which);
+                Log.d(TAG, String.valueOf(np.getValue()));
+                useRadius=true;
+                getSharedPreferences("flags",MODE_PRIVATE).edit().putBoolean("useRadius",useRadius).commit();
+                getSharedPreferences("flags",MODE_PRIVATE).edit().putInt("flagRadius",flagRadius).commit();
+                switchRadius.setChecked(true);
+                flagRadius = np.getValue()*1000;
+            }
+        })
+        .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener()
+        {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Log.d(TAG, "onClick: Cancel "+which);
+                switchRadius.setChecked(useRadius);
+            }
+        }).create().show();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode==RC_SCOREBOARD){
+            Log.d(TAG, "onActivityResult, RC_SCOREBOARD"); //DOESNT WORK, try adding "stay in history flag"?
+        }
+    }
+
+    private void startLocationService() {
+        Log.d(TAG,"startLocationService");
+        resultReceiver = new MyResultReceiver(null);
+        Intent i = new Intent(this,MyLocationService.class);
+        i.putExtra("receiver", resultReceiver);
+        startService(i); //this return immediately
+    }
+    private void bindToService() {
+        Log.d(TAG,"bindToService");
+        Intent i = new Intent(this,MyLocationService.class);
+        bindService(i, mServiceConnection, BIND_AUTO_CREATE|BIND_ADJUST_WITH_ACTIVITY); //TODO: note added flag
+    }
+
+    private void stopLocationService() {
+        Log.d(TAG,"stopLocationService");
+        if (isServiceBound) unbindFromService();
+        Intent i = new Intent(this,MyLocationService.class);
+        stopService(i);
+    }
+
+    private void unbindFromService() {
+        Log.d(TAG,"unbindFromService");
+        if (isServiceBound) {
+            unbindService(mServiceConnection);
+            myBinder = null;
+            isServiceBound = false;
+            Log.d(TAG,"unbindFromService,...done.");
+        }
+    }
+
 
     /**
      * Manipulates the map once available.
@@ -310,9 +633,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     @SuppressWarnings("MissingPermission")
     public void onMapReady(GoogleMap googleMap) {
+        Log.d(TAG, "onMapReady");
         mMap = googleMap;
+        mapOnline = true;
         //mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);//HYBRID =satelite+terrain, TERRAIN =roads
-        //googleMap.getUiSettings().setMapToolbarEnabled(false); //for not displaying bottom toolbar
+        //googleMap.getUiSettings().setMapToolbarEnabled(false); //for not displaying bottom toolbar (navigation and directions)
 
         try {
             // Customise the styling of the base map using a JSON object defined in a raw resource file.
@@ -321,7 +646,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             if (!success) {
                 Log.e("OnMapReady", "Style parsing failed.");
             }
-        } catch (Resources.NotFoundException e) {
+        } catch ( Resources.NotFoundException e ) {
             Log.e("OnMapReady", "Can't find style. Error: ", e);
         }
 
@@ -333,77 +658,94 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap.setMinZoomPreference(14);
         mMap.setLatLngBoundsForCameraTarget(MUNICH);
 
-        //if (mLocationPermissionGranted) {
-        mLastKnownLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        if (mLastKnownLocation == null) {
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM));
-            myMarker = mMap.addMarker(new MarkerOptions()
-                    .title(getString(R.string.default_info_title))
-                    .position(mDefaultLocation)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
-                    .snippet(getString(R.string.default_info_snippet)));
+        if (mLastKnownLocation != null) {
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mLastKnownLocation, DEFAULT_ZOOM));
+            if (myMarker==null) myMarker = createMyMarker();
+            else myMarker.setPosition(mLastKnownLocation);
         } else {
-            LatLng me = new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude());
-            thisMe = new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude());
-
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                    new LatLng(mLastKnownLocation.getLatitude(), mLastKnownLocation.getLongitude()), DEFAULT_ZOOM));
-            myMarker = mMap.addMarker(new MarkerOptions()
-                    .title(getString(R.string.default_info_title))
-                    .position(me)
-                    .snippet(getString(R.string.default_info_snippet))
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
-            //.alpha(0.7f)
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM)); //with no location, you get map of earth
         }
-        //} else askpermission();
-        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener()
-        {
-            @Override
-            public boolean onMarkerClick(Marker marker) {
-                Log.d(TAG, "onMarkerClick");
-                if (hash_marker_id.containsValue(marker)){
-                    Intent intent = new Intent(MapsActivity.this, ProfileActivity.class);
-                    String extra = hash_marker_id.get(marker);
-                    intent.putExtra("key_id", extra);
-                    startActivity(intent);
-                }
-                else if (hash_place_markers.containsValue(marker.getId())){ //TODO does marker->place or place->marker
-                    hash_place_markers.get(marker.getId()).showInfoWindow();
-                }
-                marker.showInfoWindow();
-                return true;
-            }
-        });
-
-        //mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener()
-        //{
-        //    @Override
-        //    public void onInfoWindowClick(Marker marker) {
-        //        Log.d("MAP ready: ", "onInfoWindowClick");
-        //    }
-        //});
-
+        mMap.setOnMarkerClickListener(this);
         mMap.setOnMapLongClickListener(this);
 
-        //attachListeners();
+        attachListeners();
+    }
+
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        Log.d(TAG, "onMarkerClick");
+        if (hash_marker_id.containsValue(marker)){
+            Intent intent = new Intent(MapsActivity.this, ProfileActivity.class);
+            String extra = hash_marker_id.get(marker);
+            intent.putExtra("key_id", extra);
+            startActivity(intent);
+        }
+        else {
+            marker.showInfoWindow(); //TODO test now if it works
+        }
+        return true;
     }
 
     @Override
     public void onMapLongClick(LatLng latLng) {
-        //Location well = new Location("");
-        //well.setLatitude(latLng.latitude);
-        //well.setLongitude(latLng.longitude);
-        //onLocationChanged(well);
         //float distanceInMeters =  targetLocation.distanceTo(myLocation);
         Toast.makeText(this, latLng.latitude + ": "+latLng.longitude, Toast.LENGTH_SHORT).show();
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menu_map, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        //int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        switch (item.getItemId()) {
+            case (R.id.menu_start_geofences):
+                myBinder.startGeofencing();
+                return true;
+            case (R.id.menu_hide_geofences):
+                //isMyServiceRunning(MyLocationService.class);
+                //eraseGeofenceCircles(true);
+                fillClientGeofences();
+                return true;
+            case (R.id.menu_delete_geofences):
+                myBinder.stopGeofencing();
+                return true;
+            case (R.id.menu_show_all_places):
+                //showAllUsers();
+                showAllPlaces();
+                return true; // absorbed event
+            case (R.id.menu_remove_all_places):
+                //removeAllUsers();
+                removeAllPlaces();
+                return true;
+            case (R.id.menu_search_date):
+                searchDate();
+                return true;
+            case (R.id.menu_search_server):
+                searchMapRadiusServer(100,"type","Recycle");
+                return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+
     private void detachDatabaseReadListener() {
         if (mChildEventListenerFriends != null) {
-            //for (int i=0; i<friends.size(); i++)
-            //     refLocation.child(friends.get(i)).removeEventListener(mValueEventListener);
             refMyFriends.removeEventListener(mChildEventListenerFriends);
-            //mChildEventListenerFriends = null;
+        }
+        //listeners for each friend's location?
+        for (String id: friends) {
+            refLocation.child(id).removeEventListener(mChildEventListenerLocations);
         }
 
         if (mValueEventListenerFilters != null){
@@ -414,7 +756,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void attachListeners() {
         // IT HAS TO BE CHILD_LISTENER TO DIFFERENTIATE BETWEEN ADDED AND CHANGED
-        if (mChildEventListenerLocations == null) { //for this to work, it has to have an additional node <mine>
+        if (mChildEventListenerLocations == null) { //for this to work, it has to have an additional node <coordinates>
             mChildEventListenerLocations = new ChildEventListener()
             {
                 @Override
@@ -430,34 +772,33 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     // Procedure for deleting marker: find mMarker, mMap.setMap(null), delete mMarker
                     refUsers.child(id).child("photoUrl")
                             .addListenerForSingleValueEvent(new ValueEventListener()
-                                                            {
-                                                                @Override
-                                                                public void onDataChange(DataSnapshot dataSnapshot) {
-                                                                    Log.d("loadImageMarker", dataSnapshot.getValue(String.class));
-                                                                    Glide.with(MapsActivity.this)
-                                                                            .asBitmap()
-                                                                            .load(dataSnapshot.getValue(String.class))
-                                                                            .apply(requestOptions)
-                                                                            .into(new SimpleTarget<Bitmap>()
-                                                                            {
-                                                                                @Override
-                                                                                public void onResourceReady(Bitmap resource, Transition<? super Bitmap> transition) {
-                                                                                    MarkerOptions mo = new MarkerOptions();
-                                                                                    mo.position(bean.makeCoordinates());
-                                                                                    mo.icon(BitmapDescriptorFactory.fromBitmap(resource));
-                                                                                    Marker marker = mMap.addMarker(mo); //has to be like this because "You can't change the icon once you've created the marker."
-                                                                                    hash_marker_id.put(marker, id);
-                                                                                    hashWeak_id_marker.put(id, marker);
-                                                                                    Log.d("onResourceReady: ", id);
-                                                                                }
-                                                                            });
-                                                                }
-
-                                                                @Override
-                                                                public void onCancelled(DatabaseError databaseError) {
-                                                                    Log.d("ERROR: loadImageMarker", databaseError.getMessage());
-                                                                }
-                                                            }
+                            {
+                                @Override
+                                public void onDataChange(DataSnapshot dataSnapshot) {
+                                    Log.d("loadImageMarker", dataSnapshot.getValue(String.class));
+                                    Glide.with(MapsActivity.this)
+                                            .asBitmap()
+                                            .load(dataSnapshot.getValue(String.class))
+                                            .apply(requestOptions)
+                                            .into(new SimpleTarget<Bitmap>()
+                                            {
+                                                @Override
+                                                public void onResourceReady(Bitmap resource, Transition<? super Bitmap> transition) {
+                                                    MarkerOptions mo = new MarkerOptions();
+                                                    mo.position(bean.makeCoordinates());
+                                                    mo.icon(BitmapDescriptorFactory.fromBitmap(resource));
+                                                    Marker marker = mMap.addMarker(mo); //has to be like this because "You can't change the icon once you've created the marker."
+                                                    hash_marker_id.put(marker, id);
+                                                    hashWeak_id_marker.put(id, marker);
+                                                    Log.d("onResourceReady: ", id);
+                                                }
+                                            });
+                                }
+                                @Override
+                                public void onCancelled(DatabaseError databaseError) {
+                                    Log.d("ERROR: loadImageMarker", databaseError.getMessage());
+                                }
+                            }
                             );
                 }
 
@@ -513,6 +854,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Marker marker = hashWeak_id_marker.get(id);
                     hashWeak_id_marker.remove(id); //first remove from weak map with references
                     hash_marker_id.remove(marker);
+                    friends.remove(id);
                     refLocation.child(id).removeEventListener(mChildEventListenerLocations);
                 }
 
@@ -530,141 +872,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.menu_map, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        //int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        switch (item.getItemId()) {
-            case (R.id.myprofile_menu):
-                Intent mine = new Intent(MapsActivity.this, MyProfileActivity.class);
-                startActivity(mine);
-                break;
-            case (R.id.addplace_menu):
-                if (thisMe != null) {
-                    Intent addPlace = new Intent(this, PlaceAddActivity.class);
-                    addPlace.putExtra("place_lat", thisMe.latitude);
-                    addPlace.putExtra("place_lon", thisMe.longitude);
-                    startActivity(addPlace);
-                } else
-                    Toast.makeText(this, "PlaceAdd not ready", Toast.LENGTH_SHORT).show();
-                return true;
-            case (R.id.menu_start_geofences):
-                //startGeofence();
-                //activateGeofences();
-                return true;
-            case (R.id.menu_hide_geofences):
-                //eraseGeofenceCircles(true);
-                return true;
-            case (R.id.menu_delete_geofences):
-                //deactivateGeofences();
-                return true;
-            case (R.id.menu_show_all_places):
-                showAllUsers();
-                return true; // absorbed event
-            case (R.id.menu_remove_all_places):
-                removeAllUsers();
-                return true;
-            case (R.id.menu_search_date):
-                //searchDate();
-                return true;
-            case (R.id.menu_search_server):
-                //searchMapRadiusServer(100,"type","Recycle");
-                return true;
-            case (R.id.sign_out_menu):
-                FirebaseAuth.getInstance().signOut();
-                finish();
+    //this should not be allowed, it defies the point of friendships and privacy
+    //THIS IS A BAD IDEA
+    private void showAllUsers() {
+        Log.d(TAG, "showAllUsers");
+        final String myid = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        if (hash_id_marker_users==null){
+            hash_id_marker_users = new HashMap<>();
         }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    //TODO make this dynamic when loaded from db
-    private BitmapDescriptor decideIcon(String type) {
-        //String[] array = getResources().getStringArray(R.array.add_type_spinner_array);
-        switch(type){
-            case("Recycle"):
-                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_recycle_green_edited);
-            case("Drinking fountain"):
-                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_heart_greenedit);
-            case("Electric car"):
-                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_car_greenedit);
-            default:
-                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_recycle_green_edited);
-        }
-    }
-
-    // if expiration time for places is short, maybe use ChildEventListener?
-    //TODO for some reason, you are not getting the last added place, add it manually when return from addplace?
-    // error is because of the way cache is saved
-    private void showAllPlaces()
-    {
-        if (!hash_place_markers.isEmpty()) {
-            Log.d(TAG, "showAllPlaces: Your places are already loaded");
-            return;
-        }
-        refPlaces.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                for (DataSnapshot snap: dataSnapshot.getChildren()) {
-                    String key = snap.getKey();//should be the unique key
-                    PlaceBean place = snap.getValue(PlaceBean.class);
-                    if (place == null) return; //skip, this happens when place is new and is not in cache yet. fix:second call;
-
-                    MarkerOptions mo = new MarkerOptions(); //create Marker
-                    mo.position(place.location());
-                    mo.icon(decideIcon(place.getType()));
-                    mo.title(place.getAttribute());
-                    mo.snippet(place.getType());
-                    Marker marker = mMap.addMarker(mo);
-                    hash_place_markers.put(key, marker);
-                }
-            }
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-                Log.e(TAG, "showAllPlaces:onCancelled", databaseError.toException());
-            }
-        });
-    }
-
-    /*
-     * Hides Markers from map
-     * Clears list of Markers for places
-     */
-    private void removeAllPlaces()
-    {
-        if (isGeoActive) {
-            Log.d(TAG, "removeAllPlaces: You must first deactivate Geofences");
-            return;
-        }
-
-        if (hash_place_markers!=null){
-            for (Map.Entry<String, Marker> entry : hash_place_markers.entrySet())
-            {
-                entry.getValue().remove(); //delete FROM MAP
-            }
-            hash_place_markers.clear();
-        }
-    }
-
-    private void showAllUsers()
-    {
-        if (!hash_marker_id.isEmpty())
-        {
-            Log.d(TAG, "showAllUsers: You should empty loaded markers first");
-            return;
-        }
-
         if (mChildEventListenerALLUsers == null){
             mChildEventListenerALLUsers = new ChildEventListener()
             {
@@ -672,13 +887,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 public void onChildAdded(DataSnapshot dataSnapshot, String s) {
                     Log.d(TAG, "Child: "+dataSnapshot.getKey());
                     final String id = dataSnapshot.getKey(); //UID
-                    final LocationBean bean = dataSnapshot.child("coordinates").getValue(LocationBean.class);
-                    MarkerOptions mo = new MarkerOptions();
-                    mo.position(bean.makeCoordinates());
-                    mo.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_action_marker_person_color));
-                    Marker marker = mMap.addMarker(mo);
-                    hash_marker_id.put(marker, id);
-                    hashWeak_id_marker.put(id, marker);
+                    if (myid.equals(id)) return; //skip me
+                    if (!hashWeak_id_marker.containsKey(id)) //skip friends
+                    {
+                        final LocationBean bean = dataSnapshot.child("coordinates").getValue(LocationBean.class);
+                        MarkerOptions mo = new MarkerOptions();
+                        mo.position(bean.makeCoordinates());
+                        mo.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_person_green));
+                        Marker marker = mMap.addMarker(mo);
+                        hash_id_marker_users.put(id, marker);
+                    }
                 }
 
                 @Override
@@ -699,36 +917,98 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 @Override
                 public void onCancelled(DatabaseError databaseError) {
                     Log.e(TAG, "mChildEventListenerALLUsers: "+databaseError.getMessage());
+                    switchPeople.setChecked(false);
                 }
             };
         }
         refLocation.addChildEventListener(mChildEventListenerALLUsers);
     }
 
-    private void removeAllUsers()
-    {
+    private void removeAllUsers() {
+
         if (mChildEventListenerALLUsers!=null){
             refLocation.removeEventListener(mChildEventListenerALLUsers);
             mChildEventListenerALLUsers = null;
         }
-        clearPeopleFromMap();
+        clearUsersFromMap();
     }
 
-    private void clearPeopleFromMap()
-    {
-        for (Map.Entry<String, Marker> entry : hashWeak_id_marker.entrySet())
+    private void clearUsersFromMap(){
+
+        if (hash_id_marker_users==null || hash_id_marker_users.isEmpty()) return; // No user is displayed
+
+        for (Map.Entry<String, Marker> entry : hash_id_marker_users.entrySet())
         {
             entry.getValue().remove(); //delete FROM MAP
         }
-        hashWeak_id_marker.clear();
-        hash_marker_id.clear();
+        hash_id_marker_users.clear();
     }
 
-    //depending on number of places, this could be put in a separate node
-    private void searchMapTypeClient(int index, String type) {
+
+//**********************************************************************************************[ PLACES }**********************
+    private BitmapDescriptor decideIcon(String type) {
+        switch(type){
+            case("Recycle"):
+                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_recycle_green_edited);
+            case("Fountains"):
+                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_heart_greenedit);
+            case("Electric vehicles"):
+                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_car_greenedit);
+            default:
+                return BitmapDescriptorFactory.fromResource(R.drawable.ic_place_recycle_green_edited);
+        }
+    }
+
+    // Note: Because of the way firebase cache works, for the last added place you only get ID, but not the data
+    private void showAllPlaces() {
+        if (!hash_place_markers.isEmpty()) { //some of the places are already in the map, but clear just in case
+            removeAllPlaces();
+        }
+        refPlaces.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                for (DataSnapshot snap: dataSnapshot.getChildren()) {
+                    String key = snap.getKey(); //should be the unique key "-K5p97A..."
+                    PlaceBean place = snap.getValue(PlaceBean.class);
+                    if (place == null) return; //skip, this happens when place is new and is not in cache yet. fix:second call;
+
+                    MarkerOptions mo = new MarkerOptions(); //create Marker
+                    mo.position(place.location());
+                    mo.icon(decideIcon(place.getType()));
+                    mo.title(place.getType());
+                    mo.snippet(place.getAttribute());
+                    Marker marker = mMap.addMarker(mo);
+                    hash_place_markers.put(key, marker); //"-K5p97A..." : [marker]
+                }
+            }
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                Log.e(TAG, "showAllPlaces:onCancelled", databaseError.toException());
+            }
+        });
+    }
+
+    private void removeAllPlaces() {
+
+        for (Map.Entry<String, Circle> entry : hash_circles.entrySet())
+        {
+            entry.getValue().remove(); //delete FROM MAP
+        }
+        hash_circles.clear();
+        if (hash_place_markers!=null){
+            for (Map.Entry<String, Marker> entry : hash_place_markers.entrySet())
+            {
+                entry.getValue().remove(); //delete FROM MAP
+            }
+            hash_place_markers.clear();
+        }
+    }
+
+    private void searchMapTypeClient(String type) {
+        Log.d(TAG,"searchMapTypeClient");
 
         // first clean up
-        deactivateGeofences();
+        //deactivateGeofences();
         removeAllPlaces();
 
         // simple query, firebase will return only results, will be cached
@@ -740,7 +1020,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (!dataSnapshot.exists()) return;
                 for (DataSnapshot snap : dataSnapshot.getChildren()) {
                     String key = snap.getKey();//should be the unique key
+                    Log.d(TAG,"Place found: "+key);
                     PlaceBean place = snap.getValue(PlaceBean.class);
+                    if (place==null) return;
 
                     MarkerOptions mo = new MarkerOptions();
                     mo.position(place.location());
@@ -755,6 +1037,79 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.e(TAG, "searchMapTypeClient:onCancelled", databaseError.toException());
             }
         });
+    }
+
+    private void searchDialog(){
+        AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+        LayoutInflater inflater = getLayoutInflater();
+        final View bubu = inflater.inflate(R.layout.filter_layout, null);
+
+        ((Spinner)bubu.findViewById(R.id.filter_by_spinner)).setOnItemSelectedListener(new AdapterView.OnItemSelectedListener()
+        {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                try {
+                    String source = "add_attr_".concat(Integer.toString(position));
+                    Class res = R.array.class;
+                    Field field = res.getField(source);
+                    int zeId = field.getInt(null);
+                    ArrayAdapter<CharSequence> spin_adapter_attr = ArrayAdapter.createFromResource(MapsActivity.this, zeId, android.R.layout.simple_spinner_item);
+                    spin_adapter_attr.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    ((Spinner) bubu.findViewById(R.id.add_attribute_spinner)).setAdapter(spin_adapter_attr);
+                } catch (Exception e) {
+                    Log.e("Spinner selection", "Failed to get spinner ID.", e);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                Log.d(TAG, "onNothingSelected");
+            }
+        });
+
+        builder.setView(bubu)
+                .setPositiveButton("OK", new DialogInterface.OnClickListener()
+                {
+                    @Override
+                    public void onClick(DialogInterface dialog, int id) {
+                        String type = ((String)((Spinner)bubu.findViewById(R.id.filter_by_spinner)).getSelectedItem());
+                        Log.d(TAG, "on OK click "+type);
+
+                        if (type.equalsIgnoreCase("all")){
+                            if (useRadius){
+                                Log.d(TAG,"searchDialog: ALL, RADIUS: "+flagRadius);
+                                searchMapRadiusServer(flagRadius,Constants.ALL,""); //TODO second extras?
+                            }else{
+                                Log.d(TAG,"searchDialog: ALL, no radius");
+                                showAllPlaces();
+                            }
+                        } else {
+                            String attribute = ((String)((Spinner)bubu.findViewById(R.id.add_attribute_spinner)).getSelectedItem());
+                            if (attribute.equalsIgnoreCase("all")){
+                                if (useRadius){
+                                    Log.d(TAG, "searchDialog: CUSTOM searchMapRadiusServer(flagRadius=" + flagRadius + ",type=" + type + ",attribute=" + attribute + ");");
+                                    searchMapRadiusServer(flagRadius, Constants.TYPE, type);
+                                }
+                                else {
+                                    Log.d(TAG, "searchDialog: CUSTOM, no radius, no attribute");
+                                    searchMapTypeClient(type);
+                                }
+                            } else {
+                                if (useRadius) {
+                                    Log.d(TAG, "searchDialog: CUSTOM searchMapRadiusServer(flagRadius=" + flagRadius + ", ATTRIBUTE, "+attribute);
+                                    searchMapRadiusServer(flagRadius, Constants.ATTRIBUTE, attribute);
+                                }
+                                else {
+                                    Log.d(TAG, "hacky one");
+                                    searchMapRadiusServer(10000, Constants.ATTRIBUTE, attribute);
+                                }
+                            }
+                        }
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .create()
+                .show();
     }
 
     private void searchDate(){
@@ -783,25 +1138,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onDateSet(DatePicker view, int year, int month, int dayOfMonth) {
                 if (isSuccess[0]){
+                    // Note: DatePicker returns month as 0-11, this is expected and consistent with Calendar class.
                     String dateNow = "Date: "+dayOfMonth+"."+month+"."+year;
                     Log.d(TAG,dateNow);
-                    searchMapDateClient(dayOfMonth,month,year);
+                    if (useRadius){
+                        // server search
+                        searchMapDateServer(flagRadius,dayOfMonth,month,year);
+                    } else {
+                        // client search
+                        searchMapDateClient(dayOfMonth, month, year);
+                    }
                 }
             }
         }, cyear, cmonth, cday);
         builder.setButton(DialogInterface.BUTTON_NEGATIVE,getString(android.R.string.cancel),clicker);
         builder.setButton(DialogInterface.BUTTON_POSITIVE,getString(android.R.string.ok),clicker);
         builder.getDatePicker().setMaxDate(new Date().getTime());
-        builder.getDatePicker().setMinDate(new Date(1498889889007L).getTime()); //1.jul.2017=1498889889007
+        builder.getDatePicker().setMinDate(new Date(1483228800000L).getTime());
+        // 1498889889007 = Sat Jul 01 2017 06:18:09 GMT+0000
+        // 1483228800000 = Sun Jan 01 2017 00:00:00 GMT+0000
+        // 1498867200000 = Sat Jul 01 2017 00:00:00 GMT+0000
         //now+(1000*60*60*24*7)); //After 7 Days from Now
         builder.show();
     }
 
     private void searchMapDateClient(int day, int month, int year){
+        Log.d(TAG,"searchMapDateClient");
         // first clean up
-        deactivateGeofences();
+        //deactivateGeofences();
         removeAllPlaces();
 
+        // NOTE: Calendar counts months as 0-11
         Calendar date = Calendar.getInstance();
         Long now = date.getTimeInMillis();
         date.set(year,month,day);
@@ -839,87 +1206,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    private void searchTime() {
-        Calendar now = Calendar.getInstance();
-        int chour = now.get(Calendar.HOUR_OF_DAY);
-        int cminute = now.get(Calendar.MINUTE);
-
-        final boolean isSuccess[] = {false};
-
-        DialogInterface.OnClickListener clicker = new DialogInterface.OnClickListener()
-        {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                if (which == dialog.BUTTON_NEGATIVE){
-                    dialog.dismiss();
-                }
-                else if(which==dialog.BUTTON_POSITIVE){
-                    isSuccess[0] = true;
-                }
-            }
-        };
-
-        TimePickerDialog builder = new TimePickerDialog(MapsActivity.this, new TimePickerDialog.OnTimeSetListener()
-        {
-            @Override
-            public void onTimeSet(TimePicker view, int hourOfDay, int minute) {
-                if (isSuccess[0]){
-                    String timeNow = "Time: "+hourOfDay+"."+minute;
-                    Log.d(TAG,timeNow);
-                    searchMapTimeClient(hourOfDay,minute,0);
-                }
-            }
-        },chour,cminute,true);
-        builder.setButton(DialogInterface.BUTTON_NEGATIVE,getString(android.R.string.cancel),clicker);
-        builder.setButton(DialogInterface.BUTTON_POSITIVE,getString(android.R.string.ok),clicker);
-        builder.show();
-    }
-
-    private void searchMapTimeClient(int hour, int minute, int second){
-        // first clean up
-        deactivateGeofences();
+    private void searchMapDateServer(int radius, int day, int month, int year){
+        Log.d(TAG, "searchMapDateServer");
         removeAllPlaces();
 
+        // NOTE: Calendar counts months as 0-11
         Calendar date = Calendar.getInstance();
         Long now = date.getTimeInMillis();
-        date.set(Calendar.HOUR_OF_DAY,hour);
-        date.set(Calendar.MINUTE,minute);
-        date.set(Calendar.SECOND,second);
-        Long what = date.getTime().getTime(); // first getTime() forces re-calculation, second gets the correct value
+        date.set(year,month,day);
+        Long what = date.getTime().getTime();
 
-        // simple query, firebase will return only results, will be cached
-        // startAt = items GREATER THAN OR EQUAL
-        // endAt = items LESS THAN OR EQUAL
-        Query byDate = refPlaces.orderByChild("date").startAt(what).endAt(now).limitToFirst(20); //maybe do this on server for location specific
-        byDate.addListenerForSingleValueEvent(new ValueEventListener()
-        {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                Log.d(TAG, "searchMapTimeClient: started...");
-                if (!dataSnapshot.exists()) {
-                    Toast.makeText(MapsActivity.this, "No results found", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                for (DataSnapshot snap : dataSnapshot.getChildren()) {
-                    String key = snap.getKey();//should be the unique key
-                    PlaceBean place = snap.getValue(PlaceBean.class);
-
-                    MarkerOptions mo = new MarkerOptions();
-                    mo.position(place.location());
-                    mo.icon(decideIcon(place.getType()));
-                    mo.title(place.getAttribute());
-                    Marker marker = mMap.addMarker(mo);
-                    hash_place_markers.put(key, marker);
-                }
-            }
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-                Log.e(TAG, "searchMapTimeClient:onCancelled", databaseError.toException());
-            }
-        });
+        searchMapRadiusServer(radius, Constants.DATE, what.toString());
     }
 
     private void searchMapRadiusServer(int radius, String filter, String extras){
+        Log.d(TAG,"searchMapRadiusServer");
+        removeAllPlaces();
         HashMap<String, Object> request = new HashMap<>();
         request.put("radius",radius);
         request.put("filter",filter);
@@ -937,24 +1239,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 {
                     Log.d(TAG,"REQUEST SENT: "+pushKey);
 
-                    if (mValueEventListenerFilters ==null) {
+                    if (mValueEventListenerFilters ==null) { // has to be the "long-lasting" listener because data may not exist at the time of attachment
                         mValueEventListenerFilters = new ValueEventListener() {
                             @Override //----LIST----- ITEM = PLACE UNIQUE KEY
                             public void onDataChange(DataSnapshot dataSnapshot)
                             {
+                                // failsafe, because on first read it reads 0
                                 if(dataSnapshot.getChildrenCount()==0){
                                     Log.d(TAG, "No children.");
                                     return;
                                 }
-                                //check if we got results
+                                //check if we got "results", which is key node set when results found actually are =0
                                 else if(dataSnapshot.child("result").exists()){
+                                    Toast.makeText(MapsActivity.this, "No results found.", Toast.LENGTH_SHORT).show();
                                     Log.d(TAG, "Result: No results found");
                                     return;
                                 }
                                 else {
+                                    //if it falls through here, we got results (results is a list of placeKey that fit filter)
                                     Log.d(TAG, "Results: " + dataSnapshot.getChildrenCount());
-                                    final int counter[] = {(int)dataSnapshot.getChildrenCount()};
-                                    //if it falls through here, we got results
+                                    final int counter[] = {(int)dataSnapshot.getChildrenCount()}; // unlikely to overflow int
                                     for (DataSnapshot snap : dataSnapshot.getChildren()) //placeKey:true
                                     {
                                         final String placeKey = snap.getKey();
@@ -1004,129 +1308,96 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
-    private boolean isMyServiceRunning(Class<?> serviceClass) {
-        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (serviceClass.getName().equals(service.service.getClassName())) {
-                Toast.makeText(this, "Service running", Toast.LENGTH_SHORT).show();
-                return true;
-            }
-        }
-        Toast.makeText(this, "Service NOT RUNNING", Toast.LENGTH_SHORT).show();
-        return false;
-    }
-
-    @Override
-    public void onBackPressed() {
-        //mGoogleApiClient.disconnect(); //documentation: connect/disconnect is automatic onstart/stop????
-        super.onBackPressed();//?
-        Intent escape = new Intent();
-        setResult(RESULT_OK, escape);
-        finish();
-    }
-
     /**
      * Builds the map when the Google Play services client is successfully connected.
      */
-    @Override
-    public void onConnected(@Nullable Bundle bundle) {
+    public void onGACConnected() {
+        Log.d(TAG, "onGACConnected");
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this); // calls onMapReady when ready
-
-        //here you can get last known location
-        //mLastKnownLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-
-        // Begin polling for new location updates.
-        startLocationUpdates();
-        FirebaseMessaging.getInstance().subscribeToTopic("close"); //gets notification from CloudFunction, about user close by
     }
 
-    @Override
-    public void onConnectionSuspended(int i) {
-        if (i == CAUSE_SERVICE_DISCONNECTED) {
-            Toast.makeText(this, "Disconnected. Reconnecting...", Toast.LENGTH_SHORT).show();
-        } else if (i == CAUSE_NETWORK_LOST) {
-            Toast.makeText(this, "Network lost. Reconnecting...", Toast.LENGTH_SHORT).show();
-        }
-        mGoogleApiClient.connect();
-    }
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-        Toast.makeText(this, connectionResult.getErrorMessage(), Toast.LENGTH_SHORT).show();
-    }
-
-    @Override
-    public void onLocationChanged(Location location) {
-        // New location has now been determined
-        myMarker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
-        String msg = "Updated Location: " +
-                Double.toString(location.getLatitude()) + "," +
-                Double.toString(location.getLongitude());
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-        LocationBean beanie = new LocationBean(location.getLatitude(), location.getLongitude());
-        //LocationBean beanie = new LocationBean(ServerValue.TIMESTAMP, location.getLatitude(),location.getLongitude());
-        refMyLocation.child(Constants.COORDINATES).setValue(beanie);
+    public void newLocationChanged(Double lat, Double lon) {
         // You can now create a LatLng Object for use with maps
-        thisMe = new LatLng(location.getLatitude(), location.getLongitude());
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(thisMe));
-        myMarker.setPosition(thisMe);
-    }
+        mLastKnownLocation = new LatLng(lat, lon);
+        if (mMap!=null && mapOnline) {
+            mMap.moveCamera(CameraUpdateFactory.newLatLng(mLastKnownLocation));
+            if (myMarker==null) myMarker = createMyMarker();
+            else myMarker.setPosition(mLastKnownLocation);
 
-    // Trigger new location updates at interval
-    protected void startLocationUpdates() {
-        // Create the location request
-        mLocationRequest = LocationRequest.create()
-                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setSmallestDisplacement(0.1f)      //  Set the minimum displacement between location updates in meters (tryout)
-                .setInterval(UPDATE_INTERVAL)       // GoogleDoc: 5 seconds would be appropriate for realtime
-                .setFastestInterval(FASTEST_INTERVAL);
-        // Request location updates
-        try {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-            //requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 10, locationListener);
-        } catch (SecurityException se) {
-            Log.d("DEBUG", "startLocationUpdates: " + se.getMessage());
         }
     }
 
-    public void checkLocationPermission() { //this is nescessary, should be checked on app(main activity) start
-        if (ContextCompat.checkSelfPermission(MapsActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(MapsActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION)) {
-                ActivityCompat.requestPermissions(MapsActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
-            } else {
-                ActivityCompat.requestPermissions(MapsActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
-            }
+    private Marker createMyMarker() {
+        return mMap.addMarker(new MarkerOptions()
+                .title(getString(R.string.default_info_title))
+                .position(mLastKnownLocation)
+                .snippet(getString(R.string.default_info_snippet))
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_action_location_me_dark)));
+                //.alpha(0.7f));
+    }
+
+    public void checkLocationPermission() {
+        if (ContextCompat.checkSelfPermission(MapsActivity.this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+        {
+            ActivityCompat.requestPermissions(MapsActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
         } else {
             mLocationPermissionGranted = true;
         }
     }
 
     /**
-     * Handle onNewIntent() to inform the fragment manager that the
-     * state is not saved.  If you are handling new intents and may be
-     * making changes to the fragment state, you want to be sure to call
-     * through to the super-class here first.  Otherwise, if your state
-     * is saved but the activity is not stopped, you could get an
-     * onNewIntent() call which happens before onResume() and trying to
-     * perform fragment operations at that point will throw IllegalStateException
-     * because the fragment manager thinks the state is still saved.
-     *
-     * @param intent
+     * Will be called when a user clicks on notification
+     * If the activity is already open, will prevent destroying and re-creating the activity
+     * @param intent intent that is sent with notifications
      */
-    @Override // when clicked from notifications, as to not destroy the map activity
+    @Override
     protected void onNewIntent(Intent intent) {
-        Log.d(TAG,"onNewIntent...");
-        Toast.makeText(this, "onNewIntent", Toast.LENGTH_SHORT).show();
         super.onNewIntent(intent);
+
         Bundle extras = intent.getExtras();
         if (extras != null) {
-            if (extras.containsKey("NotificationMessage")) {
-                Toast.makeText(getApplicationContext(), "onNewIntent: " + extras.getString("NotificationMessage"), Toast.LENGTH_SHORT).show();
+            if (extras.containsKey("FriendID")) {
+                //This is a friend from [MyNotificationService]
+                Log.d(TAG,"onNewIntent: FriendID: "+extras.getString("FriendID"));
+            }
+            else if(extras.containsKey("GeofenceID")){
+                //This is a geofence from [GeofenceIntentService]
+                Log.d(TAG,"onNewIntent: GeofenceID: "+extras.getString("GeofenceID"));
+                refPlaces.child(extras.getString("GeofenceID")).addListenerForSingleValueEvent(new ValueEventListener()
+                {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        if (dataSnapshot.exists()){
+                            PlaceBean geof = dataSnapshot.getValue(PlaceBean.class);
+                            if (geof==null) return;
+                            if (!hash_place_markers.containsKey(dataSnapshot.getKey())){
+                                MarkerOptions mo = new MarkerOptions()
+                                        .position(new LatLng(geof.getPlatitude(),geof.getPlongitude()))
+                                        .icon(decideIcon(geof.getType()))
+                                        .title(geof.getAttribute());
+                                Marker marker = mMap.addMarker(mo);
+                                hash_place_markers.put(dataSnapshot.getKey(), marker);
+                            }
+                            CircleOptions circleOptions = new CircleOptions()
+                                    .center(new LatLng(geof.getPlatitude(),geof.getPlongitude()))
+                                    .strokeColor(Color.argb(50, 70, 70, 70))
+                                    .fillColor(Color.argb(100, 150, 150, 150))
+                                    .radius(GEOFENCE_RADIUS);
+                            hash_circles.put(dataSnapshot.getKey(),mMap.addCircle(circleOptions));
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(DatabaseError databaseError) {
+                        Log.e(TAG,databaseError.getMessage());
+                    }
+                });
+            }
+            else {
+                Log.d(TAG,"onNewIntent got some extras");
             }
         }
-        Log.d(TAG,"...onNewIntent");
     }
 
     @Override
@@ -1137,175 +1408,127 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    // G E O F E N C E S
-    // two main functions activateGeofences() and deactivateGeofences()
+    class MyResultReceiver extends ResultReceiver {
+        public MyResultReceiver(Handler handler) {
+            super(handler);
+        }
 
-    @Override // called on LocationServices.GeofencingApi.addGeofences
-    public void onResult(@NonNull Status status) {
-        Log.i(TAG, "onResult: " + status);
-        if (status.isSuccess()) {
-            Toast.makeText(this, "Geofences added!", Toast.LENGTH_SHORT).show();
-            isGeoActive = true;
-            drawGeofenceCircles();
-        } else {
-            String errorMessage;
-            switch (status.getStatusCode()){
-                case GEOFENCE_NOT_AVAILABLE:
-                    errorMessage = getResources().getString(R.string.geo_not_available);break;
-                case GEOFENCE_TOO_MANY_GEOFENCES:
-                    errorMessage = getResources().getString(R.string.geo_too_many);break;
-                case GEOFENCE_TOO_MANY_PENDING_INTENTS:
-                    errorMessage = getResources().getString(R.string.geo_too_many_pending);break;
-                default:
-                    errorMessage = getResources().getString(R.string.geo_unknown_error);
+        @Override
+        protected void onReceiveResult(int resultCode, Bundle resultData)
+        {
+            if(resultCode == 100){
+                Log.d(TAG,"onReceiveResult: connected!");
+                if (resultData!=null && resultData.containsKey("loc")) {
+                    mLastKnownLocation = resultData.getParcelable("loc");
+                    Log.d(TAG, "onReceiveResult: we got the last known location");
+                }
+                onGACConnected(); //loads map
             }
-            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show();
+            else if(resultCode == 101){
+                Log.d(TAG,"onReceiveResult: connection suspended, reconnecting");
+            }
+            else if(resultCode == 102){
+                Log.d(TAG,"onReceiveResult: connection failed");
+                //error has to handled from activity
+                //https://developers.google.com/android/guides/api-client#handle_connection_failures
+            }
+            else if(resultCode==103){
+                Log.d(TAG,"onReceiveResult: location updated");
+                if (resultData!=null){
+                    newLocationChanged(resultData.getDouble("loc_lat"),resultData.getDouble("loc_lon"));
+                }
+            }
+            else if (resultCode==104){
+                Log.d(TAG,"onReceiveResult: geofences");
+                if (resultData!=null){
+                    Toast.makeText(MapsActivity.this, resultData.getString("error"), Toast.LENGTH_SHORT).show();
+                } else {
+                    shouldGeofence = true;
+                    switchGeofences.setChecked(true);
+                    getSharedPreferences("flags", MODE_PRIVATE).edit().putBoolean("shouldGeofence", shouldGeofence).apply();
+                }
+            }
+            else if (resultCode==105){
+                shouldGeofence = false;
+                switchGeofences.setChecked(false);
+            }
+            else{
+                Log.d(TAG,"onReceiveResult: Result Received "+resultCode);
+            }
         }
     }
 
-    /*
-     * Draws Circles around ACTIVE geofences
-     * loads from hash_place_markers
-     */
-    private void drawGeofenceCircles() { //TODO test
-        Log.d(TAG, "drawGeofenceCircles");
+    // will be called when service is binded
+    private MyLocationService.MyBinder myBinder;
+    private ServiceConnection mServiceConnection = new ServiceConnection() {
 
-        if (!isGeoActive) return;
-        //check if circles are just hidden?
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            Log.e(TAG, "onServiceDisconnected: Service has unexpectedly disconnected");
+            isServiceBound = false;
+            myBinder = null;
+        }
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            Log.d(TAG,"onServiceConnected");
+            myBinder = (MyLocationService.MyBinder) service;
+            //mBoundService = myBinder.getService();
+            isServiceBound = true;
+        }
+    };
+
+    // creates geofences in mGeofenceList[Service] from hash_place_markers[Activity] which holds current filltered results
+    protected boolean fillClientGeofences() {
+        if (!isServiceBound) {
+            Log.d(TAG, "fillClientGeofences: No service bound!");
+            return false;
+        }
         for (Map.Entry<String, Marker> entry : hash_place_markers.entrySet())
         {
-            CircleOptions circleOptions = new CircleOptions()
-                    .center(entry.getValue().getPosition())
-                    .strokeColor(Color.argb(50, 70, 70, 70))
-                    .fillColor(Color.argb(100, 150, 150, 150))
-                    .radius(GEOFENCE_RADIUS);
-            Circle fence = mMap.addCircle(circleOptions);
-            if (fence!=null)
-                hash_circles.put(entry.getKey(),fence);
-        }
-    }
-
-    /*
-     * Removes circles of active geofences from map
-     * Clears hash_circles
-     * DOES NOT REMOVE GEOFENCES!!!
-     */
-    private void eraseGeofenceCircles(boolean deleteCircles) { //TODO test
-        Log.d(TAG,"eraseGeofenceCircles("+deleteCircles+")");
-
-        if (hash_circles.isEmpty()) return;
-
-        for(Map.Entry<String,Circle> entry: hash_circles.entrySet()){
-            entry.getValue().remove(); //to erase from Map
-        }
-
-        if (deleteCircles)
-            hash_circles.clear();
-    }
-
-    /*
-     *  if Geofences are active, deactivate and clear mGeofenceList
-     *  fillGeo
-     */
-    public void activateGeofences() {
-        Log.d(TAG, "activateGeofences");
-
-        if (!mGoogleApiClient.isConnected()) {
-            Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (mGeofenceList.isEmpty()){
-            Log.e(TAG,"activateGeofences: Your list is empty.");
-            fillGeofences();
-        }
-        try {
-            LocationServices.GeofencingApi.addGeofences(
-                    mGoogleApiClient,
-                    // The GeofenceRequest object.
-                    getGeofencingRequest(),
-                    // A pending intent that is reused when calling deactivateGeofences(). This
-                    // pending intent is used to generate an intent when a matched geofence
-                    // transition is observed.
-                    //TODO save pending intent for reuse?
-                    getGeofencePendingIntent()
-            ).setResultCallback(this); // Result processed in onResult().
-        } catch (SecurityException securityException) {
-            Toast.makeText(this, "FINE_LOCATION disabled!!!", Toast.LENGTH_SHORT).show();
-            Log.e(TAG, securityException.getMessage());
-            // Catch exception generated if the app does not use ACCESS_FINE_LOCATION permission.
-        }
-    }
-
-    private GeofencingRequest getGeofencingRequest() {
-        Log.d(TAG, "getGeofencingRequest");
-        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
-        builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER);
-        builder.addGeofences(mGeofenceList);
-        return builder.build();
-    }
-
-    private PendingIntent getGeofencePendingIntent() {
-        Log.d(TAG, "getGeofencePendingIntent");
-        Intent intent = new Intent(this, GeofenceIntentService.class);
-        // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling addGeofences()
-        return PendingIntent.getService(this,GEOFENCE_REQ_CODE,intent,PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    /*
-     * Used to populate mGeofenceList from hash_place_markers
-     */
-    private void fillGeofences()
-    {
-        if (!mGeofenceList.isEmpty()) {
-            Log.d(TAG, "fillGeofences: You need to first remove geofences.");
-            return;
-        }
-
-        for(Map.Entry<String,Marker> entry: hash_place_markers.entrySet()){
-            mGeofenceList.add(new Geofence.Builder() //create Geofence
-                    .setRequestId(entry.getKey())
-                    .setCircularRegion(entry.getValue().getPosition().latitude,entry.getValue().getPosition().longitude,GEOFENCE_RADIUS)
-                    .setExpirationDuration(GEO_DURATION)
+            String dummy = entry.getValue().getTitle()+"!"+entry.getKey();
+            myBinder.getGeofenceList().add(new Geofence.Builder() //create Geofence
+                    .setRequestId(dummy)
+                    .setCircularRegion(entry.getValue().getPosition().latitude, entry.getValue().getPosition().longitude, GEOFENCE_RADIUS)
+                    .setExpirationDuration(Constants.GEO_DURATION)
                     .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
                     .build());
         }
+        Log.d(TAG, "fillClientGeofences: mGeofenceList filled by Client");
+        Log.d(TAG, "fillClientGeofences: mGeofenceList size "+myBinder.getGeofenceList().size());
+        return true;
     }
 
-    /*
-     * Removes registered Geofences from GoogleApiClient
-     * mGeoFenceList.clear()
-     * isGeoActive = false;
-     * eraseGeofenceCircles()
-     */
-    private void deactivateGeofences(){
-        if (!mGoogleApiClient.isConnected()) {
-            Log.d(TAG, "deactivateGeofences: GoogleApiClient not connected.");
-            return;
+    // will overwrite value if already exists! so no need for extra call for delete
+    protected void saveGeofenceData() { //should be about 5KB max
+        Log.d(TAG, "saveGeofenceData");
+        HashMap<String,LatLng> tosave = new HashMap<>(hash_place_markers.size());
+        for(Map.Entry<String,Marker> e: hash_place_markers.entrySet()){
+            tosave.put(e.getValue().getTitle()+"!"+e.getKey(),new LatLng(e.getValue().getPosition().latitude,e.getValue().getPosition().longitude));
         }
-        if (!mGeofenceList.isEmpty())
-        {
-            try {
-                ArrayList<String> geoIds = new ArrayList<>(); // has to be a list
-                for (Geofence geo:mGeofenceList) {
-                    geoIds.add(geo.getRequestId());
-                }
-                LocationServices.GeofencingApi.removeGeofences(mGoogleApiClient, geoIds)
-                        .setResultCallback(new ResultCallback<Status>() {
-                            @Override
-                            public void onResult(Status status) {
-                                if (status.isSuccess()) {
-                                    Toast.makeText(MapsActivity.this, "Geofences removed!", Toast.LENGTH_SHORT).show();
-                                    mGeofenceList.clear();
-                                    isGeoActive = false;
-                                    eraseGeofenceCircles(true);
-                                }
-                                else
-                                    Log.e(TAG,status.getStatusMessage());
-                            }
-                        });
-            } catch (SecurityException securityException) {
-                Log.e(TAG,securityException.getMessage());
-            }
+        SharedPreferences data = getSharedPreferences("localservice", Activity.MODE_PRIVATE);
+        SharedPreferences.Editor editor = data.edit();
+        Gson gson = new Gson();
+        String json = gson.toJson(tosave);
+        editor.putString("fences", json);
+        editor.commit();
+    }
+
+    protected void startGeofencing(){
+        Log.d(TAG, "startGeofencing");
+        if (!isServiceBound) {
+            Toast.makeText(this, "No service available", Toast.LENGTH_SHORT).show();
         }
+        if (fillClientGeofences()){
+            myBinder.startGeofencing();
+        }
+        saveGeofenceData();     // service will then reload it on restart
     }
 }
+//CODES
+// 100 - connected : [null | last known location]
+// 101 - suspended, reconnecting
+// 102 - failed
+// 103 - on location changed : two doubles
+// 104 - geofences active
+// 105 - signal for switch_geofences = false when geofences deleted

@@ -30,7 +30,14 @@ public interface Constants
     public final String ADDPLACE = "places/original";
     public final String READPLACE = "places/complete";
 
+    // Search constants
+    String ALL = "all";
+    String TYPE = "type";
+    String ATTRIBUTE = "attribute";
+    String DATE = "date";
+
     // Geofence constants
-    long GEO_DURATION = 2 * 60 * 1000; //in miliseconds
-    float GEOFENCE_RADIUS = 100.0f; // in meters
+    public static final long GEO_DURATION = 5 * 60 * 1000; //in miliseconds
+    public static final float GEOFENCE_RADIUS = 100.0f; // in meters
+    public static final int GEOFENCE_REQ_CODE = 16;
 }

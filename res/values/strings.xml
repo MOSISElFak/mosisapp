@@ -89,6 +89,7 @@
 
     <!-- MainService -->
     <string name="service_main_description">Enables notifications when users or places are near</string>
+    <string name="radius_dialog_explanation">Please select radius to use when searching for places near you</string>
 
 
 </resources>

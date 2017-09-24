@@ -11,6 +11,8 @@ import android.widget.Toast;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
+import static android.content.Intent.FLAG_ACTIVITY_RETAIN_IN_RECENTS;
+
 public class MainActivity extends AppCompatActivity
 {
     private final String TAG = "MainActivity";
@@ -46,7 +48,7 @@ public class MainActivity extends AppCompatActivity
                         Log.d(TAG, "onAuthStateChanged: signed_in:" + user.getUid());
                         MosisApp.getInstance().logoutFlag = false;
                         //Intent go = new Intent(MainActivity.this, MapsActivity.class);
-                        Intent go = new Intent(MainActivity.this, BluetoothFriendActivity.class);
+                        Intent go = new Intent(MainActivity.this, MapsActivity.class);
                         go.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
                         startActivityForResult(go, RC_MAIN);
                     }
@@ -84,7 +86,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    @Override //onPause or onStop?
+    @Override
     protected void onPause() {
         super.onPause();
         Log.d(TAG, "onPause");
@@ -93,7 +95,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    @Override //onResume or onStart?
+    @Override
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");

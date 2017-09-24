@@ -17,14 +17,6 @@
     <!-- needed -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!-- To auto-complete the email text field in the login form with the user's emails -->
-    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
-    <uses-permission android:name="android.permission.READ_PROFILE"/>
-    <uses-permission android:name="android.permission.READ_CONTACTS"/>
-
-    <!-- later for service to attach to friends and places -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-
     <application
         android:name="com.demo.mosisapp.MosisApp"
         android:allowBackup="false"
@@ -67,6 +59,7 @@
             android:name=".MapsActivity"
             android:label="@string/title_activity_maps"
             android:launchMode="singleTop"
+            android:permission="android.permission.ACCESS_FINE_LOCATION"
             android:theme="@style/AppTheme.NoActionBar">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"

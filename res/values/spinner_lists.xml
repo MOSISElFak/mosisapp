@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="add_type_spinner_array">
+        <item>All</item>
         <item>Recycle</item>
-        <item>Drinking fountain</item>
-        <item>Electric car</item>
+        <item>Fountains</item>
+        <item>"Electric vehicles"</item>
     </string-array>
 
+    <!-- Type: All -->
+    <string-array name="add_attr_0">
+        <item>All</item>
+    </string-array>
+
+    <!-- Type: Recycle -->
     <string-array name="add_attr_1">
+        <item>All</item>
         <item>Plastic</item>
         <item>Paper</item>
         <item>Glass</item>
@@ -14,11 +22,56 @@
         <item>Clothes</item>
     </string-array>
 
+    <!-- Type: Fountains -->
     <string-array name="add_attr_2">
-        <item>Attribute1</item>
-        <item>Attribute2</item>
-        <item>Attribute3</item>
-        <item>Attribute4</item>
+        <item>All</item>
+        <item>Drinking</item>
+        <item>Monument</item>
+        <item>Decorative</item>
+        <item>Natural</item>
+    </string-array>
+
+    <!-- Type: Electric vehicles -->
+    <string-array name="add_attr_3">
+        <item>All</item>
+        <item>Chargers</item>
+        <item>Showroom</item>
+        <item>Dealership</item>
+        <item>Repair shop</item>
+    </string-array>
+
+
+    <!-- USED IN ACTIVITY ADD PLACE -->
+    <!-- "ALL" FIELDS REMOVED -->
+    <string-array name="type_spinner_array">
+        <item>Recycle</item>
+        <item>Fountains</item>
+        <item>"Electric vehicles"</item>
+    </string-array>
+
+    <!-- Type: Recycle -->
+    <string-array name="attr_1">
+        <item>Plastic</item>
+        <item>Paper</item>
+        <item>Glass</item>
+        <item>Pfand</item>
+        <item>Clothes</item>
+    </string-array>
+
+    <!-- Type: Fountains -->
+    <string-array name="attr_2">
+        <item>Drinking</item>
+        <item>Monument</item>
+        <item>Decorative</item>
+        <item>Natural</item>
+    </string-array>
+
+    <!-- Type: Electric vehicles -->
+    <string-array name="attr_3">
+        <item>Chargers</item>
+        <item>Showroom</item>
+        <item>Dealership</item>
+        <item>Repair shop</item>
     </string-array>
 
 </resources>

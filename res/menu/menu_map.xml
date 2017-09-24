@@ -33,7 +33,7 @@
     <item
         android:id="@+id/menu_delete_geofences"
         android:orderInCategory="100"
-        android:title="Delete geofences"
+        android:title="Stop(delete) geofences"
         android:icon="@drawable/ic_action_error"
         app:showAsAction="never" />
 
@@ -58,6 +58,18 @@
         android:id="@+id/menu_search_server"
         android:orderInCategory="100"
         android:title="Search SERVER"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_see_score"
+        android:orderInCategory="100"
+        android:title="Scoreboard"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_stop_service"
+        android:orderInCategory="100"
+        android:title="Stop Service!"
         app:showAsAction="never" />
 
     <item

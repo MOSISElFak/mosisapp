@@ -59,8 +59,13 @@ public class ScoreboardActivity extends AppCompatActivity
         {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                int myscore = dataSnapshot.getValue(Integer.class);
-                getSupportActionBar().setSubtitle("My Score: "+myscore);
+                if (dataSnapshot.exists()) {
+                    int myscore = dataSnapshot.getValue(Integer.class);
+                    getSupportActionBar().setSubtitle("My Score: " + myscore);
+                }
+                else {
+                    getSupportActionBar().setSubtitle("My Score: 0");
+                }
             }
 
             @Override
