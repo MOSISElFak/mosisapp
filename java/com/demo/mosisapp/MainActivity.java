@@ -1,6 +1,5 @@
 package com.demo.mosisapp;
 
-import android.*;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
@@ -17,8 +16,6 @@ import android.widget.Toast;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
-import static android.content.Intent.FLAG_ACTIVITY_RETAIN_IN_RECENTS;
-
 public class MainActivity extends AppCompatActivity
 {
     private final String TAG = "MainActivity";
@@ -28,6 +25,7 @@ public class MainActivity extends AppCompatActivity
     private FirebaseAuth mFirebaseAuth;
     private FirebaseAuth.AuthStateListener mAuthStateListener;
     private static final int RC_SIGN_IN = 123; //request code
+    boolean trickster = false;
 
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -36,7 +34,6 @@ public class MainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-
         //initalize Firebase
         mFirebaseAuth = FirebaseAuth.getInstance();
 
@@ -53,7 +50,6 @@ public class MainActivity extends AppCompatActivity
                     {
                         Log.d(TAG, "onAuthStateChanged: signed_in:" + user.getUid());
                         MosisApp.getInstance().logoutFlag = false;
-                        checkPermission();
                         Intent go = new Intent(MainActivity.this, MapsActivity.class);
                         go.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
                         startActivityForResult(go, RC_MAIN);
@@ -72,6 +68,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void checkPermission() {
+        Log.d(TAG,"checkPermission in MapsActivity");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {  // Only ask for these permissions on runtime when running Android 6.0 or higher
                 if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
                     ActivityCompat.requestPermissions(MainActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, Constants.RC_LOCATION);
@@ -82,6 +79,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        Log.d(TAG,"onRequestPermissionsResult");
         if(requestCode==Constants.RC_LOCATION){
             if (ActivityCompat.checkSelfPermission(this, permissions[0]) == PackageManager.PERMISSION_GRANTED){
                 Intent go = new Intent(MainActivity.this, MapsActivity.class);
@@ -96,14 +94,17 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        Log.d(TAG,"onActivityResult");
         if (requestCode == RC_SIGN_IN){
             Log.d(TAG, "onActivityResult: RC_SIGN_IN");
             if (resultCode== Activity.RESULT_OK) {
                 Toast.makeText(this, "Signed in!", Toast.LENGTH_SHORT).show();
-            }else if (resultCode == RESULT_CANCELED){ //if user cancels the sign in
-                Toast.makeText(this, "Sign in canceled!", Toast.LENGTH_SHORT).show();
-                finish(); //so that you can actually leave
-            }else Toast.makeText(this, "Well, we returned", Toast.LENGTH_SHORT).show();
+                // and then, onAuthStateListener will handle this and start activity
+            }else {
+                Log.d(TAG, "Sign in canceled!");
+                trickster = true;   // so that we can actually leave
+                finish(); // after this it calls onResume->onPause->onAuthStateChanged->onAuthStateChanged: signed out AGAIN
+            }
         }
         else if (requestCode == RC_MAIN) {
             Log.d(TAG, "onActivityResult: RC_MAIN");
@@ -111,7 +112,6 @@ public class MainActivity extends AppCompatActivity
                 FirebaseAuth.getInstance().signOut();
             }
             finish();
-            return;
         }
     }
 
@@ -128,6 +128,14 @@ public class MainActivity extends AppCompatActivity
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        if (trickster || MosisApp.getInstance().leaveMapsFlag) { // So that we can leave, because AuthStateListener is causing restart of LoginActivity
+            if (mAuthStateListener != null) {
+                mFirebaseAuth.removeAuthStateListener(mAuthStateListener);
+            }
+            MosisApp.getInstance().leaveMapsFlag = false;
+            finish();
+            return;
+        }
         mFirebaseAuth.addAuthStateListener(mAuthStateListener);
     }
 }

@@ -45,4 +45,7 @@ public interface Constants
     public static final long GEO_DURATION = 5 * 60 * 1000; //in miliseconds
     public static final float GEOFENCE_RADIUS = 100.0f; // in meters
     public static final int GEOFENCE_REQ_CODE = 16;
+
+    int RECEIVER_KEY_NEW_LOCATION = 103;
+    String RECEIVER_NEW_LOCATION = "location";
 }

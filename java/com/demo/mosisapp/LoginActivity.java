@@ -1,6 +1,5 @@
 package com.demo.mosisapp;
 
-import android.*;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
@@ -8,7 +7,9 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.nfc.Tag;
 import android.os.Build;
+import android.os.PersistableBundle;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
@@ -96,7 +97,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-
+        Log.d(TAG, "onCreate");
         mPic = (ImageView)findViewById(R.id.inner_logo);
         mPic.setOnClickListener(this);
         mPic.setClickable(false);
@@ -259,7 +260,50 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     }
 
     @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        Log.d(TAG,"onSaveInstanceState");
+        if (!isLogin && !letMeOut) { //means we are registering
+            Log.d(TAG,"saving state...");
+            outState.putBoolean("isRegister", true);
+            outState.putString("mEditText_mail", mEditText_mail.getText().toString());
+            outState.putString("mEditText_pass", mEditText_pass.getText().toString());
+            outState.putString("mEditText_user", mEditText_user.getText().toString());
+            outState.putString("mEditText_realname", mEditText_realname.getText().toString());
+            outState.putString("mEditText_lastname", mEditText_lastname.getText().toString());
+            outState.putString("mEditText_phone", mEditText_phone.getText().toString());
+        }
+    }
+
+    // This is nescessary because of 5.1 where state is (for UNKNOWN reason) not saved (works on 6.0)
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        Log.d(TAG, "onRestoreInstanceState");
+        if (savedInstanceState.containsKey("isRegister")){ //we came back from taking a picture
+            Log.d(TAG,"restoring state...");
+            isLogin = false;
+            letMeOut = false;
+            mPic.setImageResource(R.drawable.frame);
+            mPic.setClickable(true);
+            findViewById(R.id.main_form).setVisibility(View.GONE);
+            findViewById(R.id.login_flow).setVisibility(View.VISIBLE);
+            findViewById(R.id.register_form).setVisibility(View.VISIBLE);
+            findViewById(R.id.sign_in_button).setVisibility(View.GONE);
+            forgot_password.setVisibility(View.GONE);
+            mEditText_mail.setText(savedInstanceState.getString("mEditText_mail","")); //in case user changes modes login/register
+            mEditText_pass.setText(savedInstanceState.getString("mEditText_pass",""));
+            mEditText_user.setText(savedInstanceState.getString("mEditText_user",""));
+            mEditText_realname.setText(savedInstanceState.getString("mEditText_realname",""));
+            mEditText_lastname.setText(savedInstanceState.getString("mEditText_lastname",""));
+            mEditText_phone.setText(savedInstanceState.getString("mEditText_phone",""));
+            // and now it will call onActivityResult...
+        }
+    }
+
+    @Override
     public void onBackPressed() { //returns to choice login/register
+        Log.d(TAG,"onBackPressed");
         if (letMeOut) super.onBackPressed();
         else if(forgetmenot) {
             forgetmenot = false;
@@ -282,7 +326,7 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
             tv.setVisibility(View.GONE);
             tv.setText(R.string.message_forgot);
             mPic.setClickable(false);
-            mPic.setImageResource(R.drawable.logo_fsociety_smal);
+            mPic.setImageResource(R.drawable.logo_mosisapp_highres);
         }
     }
 
@@ -360,7 +404,6 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                 break;
             case(R.id.inner_logo):
                 checkCameraPermission();
-                takeMyPic();
                 break;
         }
     }
@@ -370,6 +413,8 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
             if (ContextCompat.checkSelfPermission(LoginActivity.this, android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(LoginActivity.this, new String[]{android.Manifest.permission.CAMERA}, Constants.RC_CAMERA);
             }
+        } else {
+            takeMyPic(); // If lower
         }
     }
 
@@ -691,14 +736,19 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         Log.d(TAG, "onActivityResult");
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
+            Log.d(TAG, "image taking: result ok");
             Bundle extras = data.getExtras();
             imageBitmap = (Bitmap) extras.get("data");
+            Log.d(TAG, "size of image: "+imageBitmap.getByteCount()+" [b]");
             mPic.setImageBitmap(imageBitmap);
             pic_set = true;
             mStatus_register.setVisibility(View.GONE);
-            if (!isLogin && mail_set && pass_set && usern_set && real_set && last_set && phone_set)
+            if (!isLogin && mail_set && pass_set && usern_set && real_set && last_set && phone_set) {
                 register_button.setEnabled(true);
+                Log.d(TAG, "even checked the button");
+            }
         } else {
+            Log.e(TAG, "image taking: result canceled");
             pic_set = false;
         }
     }

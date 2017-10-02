@@ -9,7 +9,9 @@ public class MosisApp extends Application
 {
     private static final MosisApp ourInstance = new MosisApp();
     protected boolean logoutFlag = false;
-    protected int RC_NOTIFICATIONS = 70;
+    protected boolean leaveMapsFlag = false;
+    protected int RC_NOTIFICATIONS = 70;            //so that user gets separate notifications about near places
+    protected int RC_FRIEND_NOTIFICATION = 300;     //so that user gets separate notifications about near users
 
     public static MosisApp getInstance() {
         return ourInstance;
@@ -37,5 +39,9 @@ public class MosisApp extends Application
     public int getNotifRC(){
         RC_NOTIFICATIONS++;
         return RC_NOTIFICATIONS;
+    }
+    public int getNotifRCFriend(){
+        RC_FRIEND_NOTIFICATION++;
+        return RC_FRIEND_NOTIFICATION;
     }
 }

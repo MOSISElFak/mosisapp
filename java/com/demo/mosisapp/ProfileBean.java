@@ -11,7 +11,7 @@ public class ProfileBean implements Serializable
     private String name;
     private String lastName;
     private String phone;
-    private String reserve;
+    private String reserve; // Used for extra info. In FriendListActivity->usersID. In ScoreboardActivity->score
 
     //ctor
     public ProfileBean() {}

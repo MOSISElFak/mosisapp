@@ -13,13 +13,11 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
-
+// Note: Known Issue: sometimes my score gets loaded last in list, even when i have more points. Solve: refresh
 public class ScoreboardActivity extends AppCompatActivity
 {
     private String TAG = "ScoreboardActivity";
     private ScoreboardListAdapter mListAdapter;
-
-    //private ProgressBar mProgressBar;
 
     private DatabaseReference refUsers;
     private Query scoreQuery;
@@ -100,7 +98,6 @@ public class ScoreboardActivity extends AppCompatActivity
                     });
                 }
                 swipey.setRefreshing(false);
-                //mProgressBar.setVisibility(View.INVISIBLE);
             }
 
             @Override
@@ -117,7 +114,6 @@ public class ScoreboardActivity extends AppCompatActivity
     }
 
     private void updateScores() {
-        //mProgressBar.setVisibility(ProgressBar.VISIBLE);
         mListAdapter.clear();
         scoreQuery.addListenerForSingleValueEvent(mValueEventListener);
     }

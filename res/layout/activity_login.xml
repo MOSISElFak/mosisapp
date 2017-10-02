@@ -39,9 +39,9 @@
             <ImageView
                 android:id="@+id/logo"
                 android:layout_width="match_parent"
-                android:layout_height="191dp"
+                android:layout_height="120dp"
                 android:contentDescription="@string/logo_description"
-                app:srcCompat="@drawable/logo_fsociety_smal"/>
+                app:srcCompat="@drawable/logo_mosisapp_highres"/>
 
             <TextView
                 android:id="@+id/welcome_title"
@@ -91,9 +91,9 @@
             <ImageView
                 android:id="@+id/inner_logo"
                 android:layout_width="match_parent"
-                android:layout_height="191dp"
+                android:layout_height="120dp"
                 android:contentDescription="@string/logo_description"
-                app:srcCompat="@drawable/logo_fsociety_smal"/>
+                app:srcCompat="@drawable/logo_mosisapp_highres"/>
 
             <android.support.design.widget.TextInputLayout
                 android:layout_width="match_parent"
@@ -107,6 +107,7 @@
                     android:imeOptions="actionNext"
                     android:inputType="textEmailAddress"
                     android:maxLines="1"
+                    android:numeric="integer"
                     android:textColor="@color/Grey_100"/>
 
             </android.support.design.widget.TextInputLayout>

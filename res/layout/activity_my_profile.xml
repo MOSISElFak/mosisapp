@@ -19,7 +19,7 @@
         android:adjustViewBounds="false"
         android:contentDescription="@string/logo_description"
         android:scaleType="fitCenter"
-        app:srcCompat="@drawable/logo_fsociety_smal" />
+        app:srcCompat="@drawable/logo_mosisapp_highres"/>
 
     <TextView
         android:layout_width="match_parent"

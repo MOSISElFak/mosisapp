@@ -59,13 +59,14 @@
         </activity>
         <activity
             android:name=".LoginActivity"
-            android:label="@string/title_activity_login">
+            android:label="@string/title_activity_login"
+            android:configChanges="orientation">
         </activity>
         <activity
             android:name=".MapsActivity"
             android:label="@string/title_activity_maps"
-            android:launchMode="singleTop"
             android:permission="android.permission.ACCESS_FINE_LOCATION"
+            android:launchMode="singleTop"
             android:theme="@style/AppTheme.NoActionBar">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
@@ -142,7 +143,7 @@
             android:singleUser="true"
             android:stopWithTask="false">
         </service>
-
+<!--
         <receiver
             android:name=".MyGPSReceiver"
             android:enabled="true"
@@ -152,6 +153,7 @@
                 <action android:name="android.location.PROVIDERS_CHANGED" />
             </intent-filter>
         </receiver>
+-->
     </application>
 
 </manifest>

@@ -187,6 +187,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
 
         if (!loadPreferences())
         {
+            Log.d(TAG, "downloading data from net");
             refDB.addListenerForSingleValueEvent(new ValueEventListener()
             {
                 @Override
@@ -220,7 +221,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                 mStorageRefDown = null;
                 if (!task.isSuccessful()) {
                     Log.e(TAG, "Image download failed!");
-                    pic.setImageResource(R.drawable.logo_fsociety_smal);
+                    pic.setImageResource(R.drawable.logo_mosisapp_highres);
                 } else {
                     Log.d(TAG, "Image downloaded");
                     pic.setImageURI(address);
@@ -245,6 +246,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
     }
 
     private boolean loadPreferences() {
+        Log.d(TAG, "loadPreferences");
         SharedPreferences data = getSharedPreferences("basic", Activity.MODE_PRIVATE);
         if(data!=null && (data.contains("first"))) {
             String temp = getString(R.string.default_text);
@@ -275,6 +277,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         switch (v.getId()) {
             case (R.id.mine_change_button):
                 if (isUpdate) {
+                    Log.d(TAG, "onClick: isUpdate");
                     updateMe();
                     setUp();
                     isUpdate = false;
@@ -286,6 +289,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
                     bphe=false;
                 }
                 else {
+                    Log.d(TAG, "onClick: not isUpdate");
                     isUpdate = true;
                     pic.setClickable(true);
                     et_username.setEnabled(true);
@@ -351,6 +355,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
     }
 
     private Uri saveImage(Bitmap imageBitmap, String name) throws IOException {
+        Log.d(TAG,"in saveImage");
         FileOutputStream osfile = null;
         File image;
         Uri photoURI;
@@ -375,8 +380,14 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
     }
 
     private void updateMe() {
-        if (!(buse||bfie||blae||bphe)) return;
+        Log.d(TAG, "updateMe");
+        Log.d(TAG,"buse: "+buse);
+        Log.d(TAG,"bfie: "+bfie);
+        Log.d(TAG,"blae: "+blae);
+        Log.d(TAG,"bphe: "+bphe);
+        if (!(buse||bfie||blae||bphe||(imageBitmap!=null))) return;
 
+        Log.d(TAG, "updateMe continues...");
         View focusView = null;
         boolean cancel = false;
         final String phone = et_phone.getText().toString();
@@ -385,7 +396,7 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
         final String last = et_last.getText().toString().trim();
 
         if (!isPhoneValid(phone)) {
-            Log.d(TAG, "Phone is invalid");
+            Log.e(TAG, "Phone is invalid");
             et_phone.setError(getString(R.string.error_invalid_phone));
             focusView = et_phone;
             cancel = true;
@@ -409,11 +420,6 @@ public class MyProfileActivity extends AppCompatActivity implements View.OnClick
             focusView.requestFocus();
             return;
         }
-
-        Log.d(TAG,"buse: "+buse);
-        Log.d(TAG,"bfie: "+bfie);
-        Log.d(TAG,"blae: "+blae);
-        Log.d(TAG,"bphe: "+bphe);
 
         final HashMap<String, Object> result = new HashMap<>();
         if (buse) result.put("username", usern);

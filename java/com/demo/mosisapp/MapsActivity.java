@@ -2,10 +2,11 @@ package com.demo.mosisapp;
 
 import android.app.Activity;
 import android.app.DatePickerDialog;
-import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -45,10 +46,10 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.SimpleTarget;
 import com.bumptech.glide.request.transition.Transition;
-import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
@@ -84,6 +85,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 import static com.demo.mosisapp.Constants.RC_CHECK_LOCATION;
+import static com.demo.mosisapp.Constants.RECEIVER_NEW_LOCATION;
 
 //setPersistanceEnabled(true) only caches data when there is a Listener attached to that node (when the data has been read at least once).
 //keepSynced(true) caches everything from that node, even if there is no listener attached.
@@ -101,6 +103,8 @@ implements OnMapReadyCallback
     private final String TAG = "MapsActivity";
     private boolean mLocationPermissionGranted = true;
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
+    private final String KEY_LOCATION = "LAST_LOCATION";
+    private final String KEY_CAMERA = "CAMERA_POSITION";
 
     //location access
     private GoogleMap mMap;
@@ -128,10 +132,11 @@ implements OnMapReadyCallback
     private List<String> friends;   //used for removing listeners on friends
 
     RequestOptions requestOptions;
+    BroadcastReceiver mBroadcastReceiver;
 
     // Markers
-    private HashMap<Marker, String> hash_marker_id;       // for identifying marker when clicked from map
-    private WeakHashMap<String, Marker> hashWeak_id_marker;   // for identifying which marker to update with new location (weak, because it only keeps references)
+    private HashMap<Marker, String> hash_marker_id;         // for identifying marker when clicked from map
+    private WeakHashMap<String, Marker> hashWeak_id_marker; // for identifying which marker to update with new location (weak, because it only keeps references)
     private HashMap<String, Marker> hash_id_marker_users;
     //Places
     private DatabaseReference refPlaces;
@@ -154,17 +159,25 @@ implements OnMapReadyCallback
     private boolean shouldGeofence = false;     //flag for activating geofences
     private boolean shouldUserfence = false;    //flag for notifications about close users
 
+    private CameraPosition cameraPosition;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (MosisApp.getInstance().leaveMapsFlag){ // IT WILL NOT LEAVE WITHOUT THIS AND SAME IN MAINACTIVITY
+            Log.d(TAG, "leaveMapsFlag");
+            finish();
+        }
+
         setContentView(R.layout.activity_maps);
         Log.d(TAG,"onCreate");
 
         // Initializations
-        friends = new ArrayList<>();
-        hash_marker_id = new HashMap<>();
-        hashWeak_id_marker = new WeakHashMap<>();
-        hash_place_markers = new HashMap<>();
+        friends = new ArrayList<>();                //Used to store UIDs so that we can remove listeners for locations
+        hash_marker_id = new HashMap<>();           //friends MARKER->UID
+        hashWeak_id_marker = new WeakHashMap<>();   //friends UID->MARKER
+        hash_place_markers = new HashMap<>();       //places
         hash_circles = new HashMap<>();
 
         // Initialize RealtimeDB
@@ -202,9 +215,43 @@ implements OnMapReadyCallback
         initializeDrawer();
     }
 
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        Log.d(TAG,"onSaveInstanceState");
+        //if (trickster)outState.putBoolean("trickster",true);
+        if (mLastKnownLocation!=null) {
+            Log.d(TAG, "onSaveInstanceState: saving lastknownlocation");
+            outState.putParcelable(KEY_LOCATION, mLastKnownLocation);
+        }
+        if (mMap != null) {
+            Log.d(TAG, "onSaveInstanceState: saving camera position");
+            outState.putParcelable(KEY_CAMERA, mMap.getCameraPosition());
+        }
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        Log.d(TAG,"onRestoreInstanceState");
+        if (savedInstanceState.containsKey(KEY_LOCATION)){
+            Log.d(TAG,"onRestoreInstanceState: restoring lastknownlocation");
+            mLastKnownLocation = savedInstanceState.getParcelable(KEY_LOCATION);
+        }
+        if (savedInstanceState.containsKey(KEY_CAMERA)){
+            cameraPosition = savedInstanceState.getParcelable(KEY_CAMERA);
+            onGACConnected();
+        } else {
+            cameraPosition = null;
+        }
+        super.onRestoreInstanceState(savedInstanceState);
+    }
+
     private void initializeDrawer() {
+        Log.d(TAG, "init Drawer");
         // TextViews
         findViewById(R.id.drawer_textview_profile).setOnClickListener(this);
+        findViewById(R.id.drawer_textview_friendlist).setOnClickListener(this);
         findViewById(R.id.drawer_textview_score).setOnClickListener(this);
         findViewById(R.id.drawer_textview_logout).setOnClickListener(this);
 
@@ -261,7 +308,7 @@ implements OnMapReadyCallback
     private void askRadiusDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
         builder.setTitle("Select Radius");
-        //builder.setView(R.layout.dialog_radius);
+
         final View ad = getLayoutInflater().inflate(R.layout.dialog_radius, null);
         final NumberPicker np = (NumberPicker)ad.findViewById(R.id.radius_picker);
         np.setMaxValue(10);//10km
@@ -405,10 +452,19 @@ implements OnMapReadyCallback
         isOpenFabMain =false;
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        Log.d(TAG,"onStart");
+    private void animateQuickClose(){
+        if (isOpenFabMain){
+            fab_main.animate().rotation(0);
+            isOpenFabMain = false;
+        }
+        findViewById(R.id.fab2_type_label).setVisibility(View.GONE);
+        findViewById(R.id.fab3_date_label).setVisibility(View.GONE);
+        fab_date.setVisibility(View.GONE);
+        fab_type.setVisibility(View.GONE);
+        fab1.setVisibility(View.INVISIBLE);
+        fab2.setVisibility(View.INVISIBLE);
+        fab3.setVisibility(View.INVISIBLE);
+        isOpenFabSearch = false;
     }
 
     @Override
@@ -421,14 +477,14 @@ implements OnMapReadyCallback
         TextView username = (TextView)findViewById(R.id.drawer_username);
         username.setText(data.getString("username","Unknown"));
 
-        startLocationService(); // startService: [onCreate][onStartCommand]
-        bindToService();        // bindService  [onBind] BECAUSE YOU NEED TO REMOVE THE RECEIVER WHEN YOU STOP ACTIVITY
+        checkLocationPermission();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         Log.d(TAG,"onPause");
+        animateQuickClose();
         getSharedPreferences("flags",MODE_PRIVATE).edit()
                 .putInt("flagRadius",flagRadius)
                 .putBoolean("shouldStop",shouldStop)
@@ -438,7 +494,10 @@ implements OnMapReadyCallback
             myMarker.remove();
             myMarker = null;
         }
-        //saveGeofenceData();
+
+        if (mBroadcastReceiver!=null) {
+            unregisterReceiver(mBroadcastReceiver);
+        }
         unbindFromService();
         detachDatabaseReadListener();
     }
@@ -541,6 +600,12 @@ implements OnMapReadyCallback
                 Intent mine = new Intent(MapsActivity.this, MyProfileActivity.class);
                 startActivity(mine);
                 break;
+            case R.id.drawer_textview_friendlist:
+                Log.d(TAG, "onClick: View Friend List");
+                mDrawerLayout.closeDrawers();
+                Intent flist = new Intent(MapsActivity.this, FriendsListActivity.class);
+                startActivity(flist);
+                break;
             case R.id.drawer_textview_score:        //Show Scoreboard
                 Log.d(TAG, "onClick: Show Scoreboard");
                 mDrawerLayout.closeDrawers();
@@ -550,9 +615,10 @@ implements OnMapReadyCallback
             case R.id.drawer_textview_logout:       //Log out
                 Log.d(TAG, "onClick: Log out");
                 MosisApp.getInstance().logoutFlag = true;
+                stopLocationService();
                 mDrawerLayout.closeDrawers();
-                MapsActivity.this.finish();
-                break;
+                finish();
+                return;
             case R.id.switch_geofences:               //Switches
                 Log.d(TAG, "onClick: switch_geofences");
                 if (switchGeofences.isChecked()){
@@ -564,6 +630,12 @@ implements OnMapReadyCallback
                         askGeofencingDialog();
                     }
                 } else {
+                    if (!hash_circles.isEmpty()) {
+                        for(Map.Entry<String,Circle> entry: hash_circles.entrySet()){
+                            entry.getValue().remove(); //to erase from Map
+                        }
+                        hash_circles.clear();
+                    }
                     shouldGeofence = false;
                     if (isServiceBound){
                         myBinder.stopGeofencing();
@@ -618,12 +690,14 @@ implements OnMapReadyCallback
                 break;
             case R.id.fab3:                         //FAB - Add person
                 Log.d(TAG, "onClick: fab3 - add person");
+                animateQuickClose();
                 Intent addFriend = new Intent(this, BluetoothFriendActivity.class);
                 startActivity(addFriend);
                 break;
             case R.id.fab2:                         //FAB - Add place
                 Log.d(TAG, "onClick: fab2 - add place");
                 if (mLastKnownLocation != null) {
+                    animateClose();
                     Intent addPlace = new Intent(this, PlaceAddActivity.class);
                     addPlace.putExtra("place_lat", mLastKnownLocation.latitude);
                     addPlace.putExtra("place_lon", mLastKnownLocation.longitude);
@@ -657,7 +731,7 @@ implements OnMapReadyCallback
     private void bindToService() {
         Log.d(TAG,"bindToService");
         Intent i = new Intent(this,MyLocationService.class);
-        bindService(i, mServiceConnection, BIND_AUTO_CREATE|BIND_ADJUST_WITH_ACTIVITY); //TODO: note added flag
+        bindService(i, mServiceConnection, BIND_AUTO_CREATE|BIND_ADJUST_WITH_ACTIVITY);
     }
 
     private void unbindFromService() {
@@ -676,13 +750,17 @@ implements OnMapReadyCallback
             if (resultCode == Activity.RESULT_OK){
                 // All required changes were successfully made
                 Toast.makeText(this, "RC_CHECK_LOCATION: OK", Toast.LENGTH_SHORT).show();
+                if (myBinder!=null && myBinder.getGAC()!=null && myBinder.getGAC().isConnected()) {
+                    mLastKnownLocation = myBinder.getLastKnownLocation();
+                    mMap.moveCamera(CameraUpdateFactory.newLatLng(mLastKnownLocation));
+                }
             } else {
                 // The user was asked to change settings, but chose not to
-                // If user stays in Activity, his location will be incorrect, but will see others
+                // If user stays in Activity, his location will be incorrect, but will see others, radius won't work correctly
                 Toast.makeText(this, "RC_CHECK_LOCATION: CANCEL", Toast.LENGTH_SHORT).show();
                 shouldStop = true;
-                MapsActivity.this.finish(); // After "finish" MAKE SURE TO CALL RETURN EVEN ON VOID! 2591840
-                return; //ZIVOTE
+                MosisApp.getInstance().leaveMapsFlag = true;
+                finish();// After "finish" MAKE SURE TO CALL RETURN EVEN ON VOID! 2591840
             }
         }
     }
@@ -704,9 +782,8 @@ implements OnMapReadyCallback
         {
             if(resultCode == 100){
                 Log.d(TAG,"onReceiveResult: connected!");
-                if (resultData!=null && resultData.containsKey("loc")) {
-                    mLastKnownLocation = resultData.getParcelable("loc");
-                    Toast.makeText(MapsActivity.this, "Got last known location!", Toast.LENGTH_SHORT).show();
+                if (resultData!=null && resultData.containsKey(Constants.RECEIVER_NEW_LOCATION)) {
+                    mLastKnownLocation = resultData.getParcelable(Constants.RECEIVER_NEW_LOCATION);
                     Log.d(TAG, "onReceiveResult: we got the last known location");
                 }
                 onGACConnected(); //loads map
@@ -723,7 +800,7 @@ implements OnMapReadyCallback
                 Log.d(TAG,"onReceiveResult: location updated");
                 Toast.makeText(MapsActivity.this, "New Location!", Toast.LENGTH_SHORT).show();
                 if (resultData!=null){
-                    newLocationChanged(resultData.getDouble("loc_lat"),resultData.getDouble("loc_lon"));
+                    newLocationChanged((LatLng)resultData.getParcelable(Constants.RECEIVER_NEW_LOCATION));
                 }
             }
             else if (resultCode==104){
@@ -800,6 +877,10 @@ implements OnMapReadyCallback
         }
     }
 
+    /*
+     * Attaches to "friends" node and creates markers for friends
+     * Attaches to friends "locations" nodes and updates Markers on changes
+     * */
     private void attachListeners() {
         // IT HAS TO BE CHILD_LISTENER TO DIFFERENTIATE BETWEEN ADDED AND CHANGED
         if (mChildEventListenerLocations == null) { //for this to work, it has to have an additional node <coordinates>
@@ -834,6 +915,7 @@ implements OnMapReadyCallback
                                                     mo.position(bean.makeCoordinates());
                                                     mo.icon(BitmapDescriptorFactory.fromBitmap(resource));
                                                     Marker marker = mMap.addMarker(mo); //has to be like this because "You can't change the icon once you've created the marker."
+                                                    Log.d(TAG, "MarkerID: "+marker.getId()+" <--> UserID: "+id);
                                                     hash_marker_id.put(marker, id);
                                                     hashWeak_id_marker.put(id, marker);
                                                     Log.d("onResourceReady: ", id);
@@ -919,7 +1001,6 @@ implements OnMapReadyCallback
     }
 
     //this should not be allowed, it defies the point of friendships and privacy
-    //THIS IS A BAD IDEA
     private void showAllUsers() {
         Log.d(TAG, "showAllUsers");
         final String myid = FirebaseAuth.getInstance().getCurrentUser().getUid();
@@ -988,6 +1069,16 @@ implements OnMapReadyCallback
             entry.getValue().remove(); //delete FROM MAP
         }
         hash_id_marker_users.clear();
+    }
+
+    private void removeFriends(){
+        if (hash_marker_id.isEmpty()) return;
+        for (Map.Entry<Marker, String> entry : hash_marker_id.entrySet())
+        {
+            entry.getKey().remove(); //delete FROM MAP
+        }
+        hash_marker_id.clear();
+        hashWeak_id_marker.clear();
     }
 
     //</editor-fold>
@@ -1364,64 +1455,60 @@ implements OnMapReadyCallback
     /**
      * Manipulates the map once available.
      * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
+     * This is where we can add markers or lines, add listeners or move the camera.
      * If Google Play services is not installed on the device, the user will be prompted to install
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
     @Override
-    @SuppressWarnings("MissingPermission")
+    //@SuppressWarnings("MissingPermission")
     public void onMapReady(GoogleMap googleMap) {
         Log.d(TAG, "onMapReady");
         mMap = googleMap;
         mapOnline = true;
-        //mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);//HYBRID =satelite+terrain, TERRAIN =roads
-        //googleMap.getUiSettings().setMapToolbarEnabled(false); //for not displaying bottom toolbar (navigation and directions)
+        if (cameraPosition==null){ // not from returning
+            try {
+                // Customise the styling of the base map using a JSON object defined in a raw resource file.
+                boolean success = mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.silver_map_with_icons));
 
-        try {
-            // Customise the styling of the base map using a JSON object defined in a raw resource file.
-            boolean success = mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.silver_map_with_icons));
-
-            if (!success) {
-                Log.e("OnMapReady", "Style parsing failed.");
+                if (!success) {
+                    Log.e("OnMapReady", "Style parsing failed.");
+                }
+            } catch ( Resources.NotFoundException e ) {
+                Log.e("OnMapReady", "Can't find style. Error: ", e);
             }
-        } catch ( Resources.NotFoundException e ) {
-            Log.e("OnMapReady", "Can't find style. Error: ", e);
-        }
 
-        //findViewById(R.id.map).setVisibility(View.VISIBLE);
-        //mMap.setMyLocationEnabled(true); // shows realtime blue dot (me) on map
-        mMap.getUiSettings().setMyLocationButtonEnabled(true); // ze button
-        //mMap.getUiSettings().setZoomControlsEnabled(true);
-        mMap.setMaxZoomPreference(20);
-        mMap.setMinZoomPreference(14);
-        //mMap.setLatLngBoundsForCameraTarget(MUNICH);
+            mMap.getUiSettings().setMapToolbarEnabled(false); //for not displaying bottom toolbar (navigation and directions)
+            mMap.setMaxZoomPreference(20);
+            mMap.setMinZoomPreference(16);
+
+            mMap.setOnMarkerClickListener(this);
+            mMap.setOnMapLongClickListener(this);
+        }
 
         if (mLastKnownLocation != null) {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mLastKnownLocation, DEFAULT_ZOOM));
             if (myMarker==null) myMarker = createMyMarker();
             else myMarker.setPosition(mLastKnownLocation);
-        } else {
+        }
+        else {
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM)); //with no location, you get map of earth
         }
-        mMap.setOnMarkerClickListener(this);
-        mMap.setOnMapLongClickListener(this);
-
         attachListeners();
     }
 
     @Override
     public boolean onMarkerClick(Marker marker) {
-        Log.d(TAG, "onMarkerClick");
-        if (hash_marker_id.containsValue(marker)){
+        Log.d(TAG, "onMarkerClick "+marker.getId());
+        if (hash_marker_id.containsKey(marker)){
             Intent intent = new Intent(MapsActivity.this, ProfileActivity.class);
             String extra = hash_marker_id.get(marker);
             intent.putExtra("key_id", extra);
             startActivity(intent);
+            return true;
         }
         else {
-            marker.showInfoWindow(); //TODO test now if it works
+            marker.showInfoWindow();
         }
         return true;
     }
@@ -1437,12 +1524,13 @@ implements OnMapReadyCallback
     public void onGACConnected() {
         Log.d(TAG, "onGACConnected");
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this); // calls onMapReady when ready
+        if (mapFragment!=null) {
+            mapFragment.getMapAsync(this); // calls onMapReady when ready
+        }
     }
 
-    public void newLocationChanged(Double lat, Double lon) {
-        // You can now create a LatLng Object for use with maps
-        mLastKnownLocation = new LatLng(lat, lon);
+    public void newLocationChanged(LatLng location) {
+        mLastKnownLocation = location;
         if (mMap!=null) {
             mMap.moveCamera(CameraUpdateFactory.newLatLng(mLastKnownLocation));
             if (myMarker==null) myMarker = createMyMarker();
@@ -1452,9 +1540,7 @@ implements OnMapReadyCallback
 
     private Marker createMyMarker() {
         return mMap.addMarker(new MarkerOptions()
-                //.title(getString(R.string.default_info_title))
                 .position(mLastKnownLocation)
-                //.snippet(getString(R.string.default_info_snippet))
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_action_location_me_dark)));
     }
 
@@ -1466,7 +1552,24 @@ implements OnMapReadyCallback
                 ActivityCompat.requestPermissions(MapsActivity.this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
             } else {
                 mLocationPermissionGranted = true;
+                startLocationService(); // startService: [onCreate][onStartCommand]
+                bindToService();        // bindService  [onBind] BECAUSE YOU NEED TO REMOVE THE RECEIVER WHEN YOU STOP ACTIVITY
+
+                mBroadcastReceiver = new MyGPSReceiver();
+                IntentFilter mIntentFilter = new IntentFilter();
+                mIntentFilter.addCategory("android.location.MODE_CHANGED");
+                mIntentFilter.addCategory("android.location.PROVIDERS_CHANGED");
+                registerReceiver(mBroadcastReceiver,mIntentFilter);
             }
+        } else {
+            startLocationService(); // startService: [onCreate][onStartCommand]
+            bindToService();        // bindService  [onBind] BECAUSE YOU NEED TO REMOVE THE RECEIVER WHEN YOU STOP ACTIVITY
+
+            mBroadcastReceiver = new MyGPSReceiver();
+            IntentFilter mIntentFilter = new IntentFilter();
+            mIntentFilter.addCategory("android.location.MODE_CHANGED");
+            mIntentFilter.addCategory("android.location.PROVIDERS_CHANGED");
+            registerReceiver(mBroadcastReceiver,mIntentFilter);
         }
     }
 
@@ -1475,6 +1578,14 @@ implements OnMapReadyCallback
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if(ActivityCompat.checkSelfPermission(this, permissions[0]) == PackageManager.PERMISSION_GRANTED && requestCode==PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION){
             mLocationPermissionGranted=true;
+            startLocationService(); // startService: [onCreate][onStartCommand]
+            bindToService();        // bindService  [onBind] BECAUSE YOU NEED TO REMOVE THE RECEIVER WHEN YOU STOP ACTIVITY
+
+            mBroadcastReceiver = new MyGPSReceiver();
+            IntentFilter mIntentFilter = new IntentFilter();
+            mIntentFilter.addCategory("android.location.MODE_CHANGED");
+            mIntentFilter.addCategory("android.location.PROVIDERS_CHANGED");
+            registerReceiver(mBroadcastReceiver,mIntentFilter);
         }
     }
 
